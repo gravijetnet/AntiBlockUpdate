@@ -1,0 +1,36 @@
+# Portal definitions
+# Each portal requires:
+#   name: unique identifier
+#   type: SERVER or COMMAND
+#   value: For SERVER, the target server name (BungeeCord/Velocity)
+#          For COMMAND, the command to execute (use {player} as placeholder)
+#   world: world name where portal exists
+#   min: minimum corner (Vector)
+#   max: maximum corner (Vector)
+portals: []
+# Example:
+# portals:
+#   - name: "hub_portal"
+#     type: SERVER
+#     value: "hub"
+#     world: "world"
+#     min:
+#       x: 10
+#       y: 64
+#       z: 10
+#     max:
+#       x: 20
+#       y: 70
+#       z: 20
+#   - name: "welcome_message"
+#     type: COMMAND
+#     value: "say Welcome {player} to the lobby!"
+#     world: "world"
+#     min:
+#       x: -5
+#       y: 64
+#       z: -5
+#     max:
+#       x: 5
+#       y: 70
+#       z: 5

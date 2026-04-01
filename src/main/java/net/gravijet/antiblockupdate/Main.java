@@ -1,7 +1,10 @@
 package net.gravijet.antiblockupdate;
 
+import net.gravijet.antiblockupdate.listener.BedInteractListener;
+import net.gravijet.lobby.portal.*;
 import org.bukkit.Material;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -14,6 +17,8 @@ import java.util.EnumSet;
 import java.util.Set;
 
 public class Main extends JavaPlugin implements Listener {
+
+    private PortalManager portalManager;
 
     /**
      * Fallende Entitäten, die durch EntityChangeBlockEvent abgedeckt werden.
@@ -99,7 +104,15 @@ public class Main extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(new BedInteractListener(), this);
+
+        // Initialize Portal System
+        portalManager = new PortalManager(this);
+        getServer().getPluginManager().registerEvents(new PortalListener(portalManager), this);
+        getCommand("portal").setExecutor(new PortalCommand(portalManager));
+
         getLogger().info("AntiBlockUpdate aktiviert – alle Block-Updates deaktiviert.");
+        getLogger().info("Portal system loaded.");
     }
 
     @Override
