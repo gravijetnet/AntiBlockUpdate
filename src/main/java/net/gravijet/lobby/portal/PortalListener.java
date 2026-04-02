@@ -11,23 +11,29 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 
 /**
  * Listens for portal triggers and wand selection.
  */
 public class PortalListener implements Listener {
 
+    private final Plugin plugin;
     private final PortalManager portalManager;
 
-    public PortalListener(PortalManager portalManager) {
+    public PortalListener(Plugin plugin, PortalManager portalManager) {
+        this.plugin = plugin;
         this.portalManager = portalManager;
     }
 
     /**
      * Handle player movement to trigger portals.
      */
-    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlayerMove(PlayerMoveEvent event) {
+        if (event.isCancelled()) {
+            plugin.getLogger().fine("PlayerMoveEvent cancelled, but still checking for portals.");
+        }
         Location from = event.getFrom();
         Location to = event.getTo();
         // Only check if the block coordinates changed (performance)
@@ -37,6 +43,7 @@ public class PortalListener implements Listener {
         Player player = event.getPlayer();
         Portal portal = portalManager.getPortalAt(to);
         if (portal != null) {
+            plugin.getLogger().info("Portal triggered: " + portal.getName() + " by " + player.getName());
             portal.execute(player.getName());
         }
     }

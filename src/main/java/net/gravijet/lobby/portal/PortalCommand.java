@@ -61,13 +61,13 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage("§c§lGraviJet §7» §fPortal System Help");
-        sender.sendMessage("§7/portal wand §f- Get the selection wand (Blaze Rod)");
-        sender.sendMessage("§7/portal create <name> <type> <value> §f- Create a portal from your selection");
-        sender.sendMessage("§7/portal delete <name> §f- Delete a portal");
-        sender.sendMessage("§7/portal list §f- List all portals");
-        sender.sendMessage("§7/portal info <name> §f- Show portal details");
-        sender.sendMessage("§7/portal reload §f- Reload portals from file");
+        sender.sendMessage("§c§lPortal Help §7- §fUseful commands.");
+        sender.sendMessage(" §7● §c/portal wand §7» §fGet the selection wand (Blaze Rod).");
+        sender.sendMessage(" §7● §c/portal create <name> <type> <value> §7» §fCreate a portal from your selection.");
+        sender.sendMessage(" §7● §c/portal delete <name> §7» §fDelete a portal.");
+        sender.sendMessage(" §7● §c/portal list §7» §fList all portals.");
+        sender.sendMessage(" §7● §c/portal info <name> §7» §fShow portal details.");
+        sender.sendMessage(" §7● §c/portal reload §7» §fReload portals from file.");
     }
 
     private void cmdWand(CommandSender sender) {

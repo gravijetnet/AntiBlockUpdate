@@ -6,7 +6,7 @@ description: Disables all physical block updates in the world.
 api-version: 1.8
 commands:
   portal:
-    description: Manage portals and zones.
+    description: Manage portals.
     usage: /portal <wand|create|delete|list|info|reload>
     permission: antiblockupdate.portal
     permission-message: You don't have permission for this command.

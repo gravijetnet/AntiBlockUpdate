@@ -108,7 +108,7 @@ public class Main extends JavaPlugin implements Listener {
 
         // Initialize Portal System
         portalManager = new PortalManager(this);
-        getServer().getPluginManager().registerEvents(new PortalListener(portalManager), this);
+        getServer().getPluginManager().registerEvents(new PortalListener(this, portalManager), this);
         getCommand("portal").setExecutor(new PortalCommand(portalManager));
 
         getLogger().info("AntiBlockUpdate aktiviert – alle Block-Updates deaktiviert.");

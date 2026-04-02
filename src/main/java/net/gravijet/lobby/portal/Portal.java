@@ -58,6 +58,9 @@ public class Portal implements ConfigurationSerializable {
     }
 
     public boolean contains(Location location) {
+        if (location.getWorld() == null) {
+            return false;
+        }
         if (!location.getWorld().getName().equals(worldName)) {
             return false;
         }
@@ -77,11 +80,14 @@ public class Portal implements ConfigurationSerializable {
         switch (type) {
             case SERVER:
                 // BungeeCord / Velocity server send
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "send " + playerName + " " + value);
+                String serverCommand = "send " + playerName + " " + value;
+                Bukkit.getLogger().info("[Portal] Sending " + playerName + " to server " + value + " via command: " + serverCommand);
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), serverCommand);
                 break;
             case COMMAND:
                 // Run as console, replace {player} placeholder
                 String command = value.replace("{player}", playerName);
+                Bukkit.getLogger().info("[Portal] Executing command: " + command);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
                 break;
             default:
