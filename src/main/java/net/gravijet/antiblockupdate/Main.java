@@ -31,6 +31,7 @@ public class Main extends JavaPlugin implements Listener {
     /**
      * Blöcke, die durch BlockPhysicsEvent NICHT weitergeleitet werden sollen.
      * Enthält alle Materialien, die auf Schwerkraft oder Nachbar-Updates reagieren.
+     * ACHTUNG: Redstone und Flüssigkeiten sind hier entfernt, damit sie funktionieren.
      */
     private static final Set<Material> PHYSICS_BLACKLIST = EnumSet.of(
             // Schwerkraft-Blöcke
@@ -38,15 +39,9 @@ public class Main extends JavaPlugin implements Listener {
             Material.GRAVEL,
             Material.ANVIL,
             Material.DRAGON_EGG,
-            // Flüssigkeiten (sicherheitshalber – primär via BlockFromToEvent)
-            Material.WATER,
-            Material.LAVA,
-            Material.STATIONARY_WATER,
-            Material.STATIONARY_LAVA,
-            // Hängende / stützpunktabhängige Blöcke
+            // Flüssigkeiten werden jetzt erlaubt (nicht mehr in Blacklist)
+            // Hängende / stützpunktabhängige Blöcke (außer Redstone)
             Material.TORCH,
-            Material.REDSTONE_TORCH_OFF,
-            Material.REDSTONE_TORCH_ON,
             Material.LEVER,
             Material.STONE_BUTTON,
             Material.WOOD_BUTTON,
@@ -91,14 +86,9 @@ public class Main extends JavaPlugin implements Listener {
             Material.GOLD_PLATE,
             // Zaun- / Tor-Verbinder (Update bei Nachbarn)
             Material.FENCE_GATE,
-            // Sonstige physik-abhängige
+            // Sonstige physik-abhängige (außer Redstone)
             Material.FIRE,
-            Material.SNOW,
-            Material.DIODE_BLOCK_OFF,
-            Material.DIODE_BLOCK_ON,
-            Material.REDSTONE_COMPARATOR_OFF,
-            Material.REDSTONE_COMPARATOR_ON,
-            Material.REDSTONE_WIRE
+            Material.SNOW
     );
 
     @Override
@@ -125,18 +115,20 @@ public class Main extends JavaPlugin implements Listener {
     // -------------------------------------------------------------------------
 
     /**
-     * Blockiert ALLE physikalischen Block-Updates.
+     * Blockiert physikalische Block-Updates nur für bestimmte Materialien (PHYSICS_BLACKLIST).
      *
      * HIGHEST + ignoreCancelled=true: Wir greifen als Letzter ein,
      * sodass andere Plugins zuerst reagieren können; danach canceln wir hart.
      *
-     * Durch das pauschale Canceln bleibt Sand in der Luft, bleiben Blumen
-     * an nicht unterstützten Positionen erhalten und reagieren Blöcke nicht
-     * auf das Platzieren/Entfernen von Nachbarblöcken.
+     * Durch das selektive Canceln bleibt Sand in der Luft, bleiben Blumen
+     * an nicht unterstützten Positionen erhalten, aber Redstone und Flüssigkeiten funktionieren.
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPhysics(BlockPhysicsEvent event) {
-        event.setCancelled(true);
+        if (PHYSICS_BLACKLIST.contains(event.getBlock().getType())) {
+            event.setCancelled(true);
+        }
+        // Andere Materialien (Redstone, Wasser, Lava) werden nicht blockiert
     }
 
     // -------------------------------------------------------------------------
@@ -188,17 +180,13 @@ public class Main extends JavaPlugin implements Listener {
     // -------------------------------------------------------------------------
 
     /**
-     * Verhindert das Fließen von Wasser und Lava in benachbarte Felder.
+     * Erlaubt das Fließen von Wasser und Lava in benachbarte Felder.
+     * (Nicht mehr blockiert)
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFromTo(BlockFromToEvent event) {
-        Material mat = event.getBlock().getType();
-        if (mat == Material.WATER || mat == Material.STATIONARY_WATER
-                || mat == Material.LAVA || mat == Material.STATIONARY_LAVA) {
-            // Nur horizontales/vertikales Ausbreiten blockieren;
-            // DOWN erlauben wir für bereits fließendes Wasser (optional, hier alles canceln)
-            event.setCancelled(true);
-        }
+        // Kein Cancelling mehr - Wasser und Lava fließen normal
+        // Optional: Nur bestimmte Richtungen blockieren, aber für jetzt alles erlauben
     }
 
     // -------------------------------------------------------------------------

@@ -41,10 +41,12 @@ public class PortalListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
-        Portal portal = portalManager.getPortalAt(to);
-        if (portal != null) {
-            plugin.getLogger().info("Portal triggered: " + portal.getName() + " by " + player.getName());
-            portal.execute(player.getName());
+        Portal portalFrom = portalManager.getPortalAt(from);
+        Portal portalTo = portalManager.getPortalAt(to);
+        // Only trigger if player enters a portal (was outside, now inside)
+        if (portalTo != null && (portalFrom == null || !portalFrom.equals(portalTo))) {
+            plugin.getLogger().info("Portal triggered: " + portalTo.getName() + " by " + player.getName());
+            portalTo.execute(player.getName());
         }
     }
 

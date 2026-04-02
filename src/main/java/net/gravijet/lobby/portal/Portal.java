@@ -80,7 +80,7 @@ public class Portal implements ConfigurationSerializable {
         switch (type) {
             case SERVER:
                 // BungeeCord / Velocity server send
-                String serverCommand = "send " + playerName + " " + value;
+                String serverCommand = "server " + playerName + " " + value;
                 Bukkit.getLogger().info("[Portal] Sending " + playerName + " to server " + value + " via command: " + serverCommand);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), serverCommand);
                 break;
