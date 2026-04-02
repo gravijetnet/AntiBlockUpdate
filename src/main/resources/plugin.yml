@@ -3,7 +3,8 @@ version: 1.0.0
 main: net.gravijet.antiblockupdate.Main
 author: Topsprinter
 description: Disables all physical block updates in the world.
-api-version: 1.8commands:
+api-version: 1.8
+commands:
   portal:
     description: Manage portals and zones.
     usage: /portal <wand|create|delete|list|info|reload>
