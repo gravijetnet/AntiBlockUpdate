@@ -101,6 +101,11 @@ public class Main extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new PortalListener(this, portalManager), this);
         getCommand("portal").setExecutor(new PortalCommand(portalManager));
 
+        // Register plugin messaging channels for BungeeCord/Velocity
+        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
+        getServer().getMessenger().registerOutgoingPluginChannel(this, "velocity:main");
+        getLogger().info("Registered BungeeCord and Velocity plugin messaging channels");
+
         getLogger().info("AntiBlockUpdate aktiviert – alle Block-Updates deaktiviert.");
         getLogger().info("Portal system loaded.");
     }

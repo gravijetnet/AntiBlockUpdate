@@ -31,21 +31,37 @@ public class PortalListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlayerMove(PlayerMoveEvent event) {
-        if (event.isCancelled()) {
-            plugin.getLogger().fine("PlayerMoveEvent cancelled, but still checking for portals.");
-        }
         Location from = event.getFrom();
         Location to = event.getTo();
+
         // Only check if the block coordinates changed (performance)
         if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) {
             return;
         }
+
         Player player = event.getPlayer();
         Portal portalFrom = portalManager.getPortalAt(from);
         Portal portalTo = portalManager.getPortalAt(to);
+
+        // Debug logging
+        if (portalFrom != null || portalTo != null) {
+            plugin.getLogger().info("[Portal Debug] " + player.getName() + ": " +
+                "From portal: " + (portalFrom != null ? portalFrom.getName() : "none") +
+                ", To portal: " + (portalTo != null ? portalTo.getName() : "none"));
+
+            if (portalFrom != null) {
+                plugin.getLogger().info("[Portal Debug] From location: " + from.getBlockX() + "," + from.getBlockY() + "," + from.getBlockZ());
+                plugin.getLogger().info("[Portal Debug] Portal bounds: min=" + portalFrom.getMin() + " max=" + portalFrom.getMax());
+            }
+            if (portalTo != null) {
+                plugin.getLogger().info("[Portal Debug] To location: " + to.getBlockX() + "," + to.getBlockY() + "," + to.getBlockZ());
+                plugin.getLogger().info("[Portal Debug] Portal bounds: min=" + portalTo.getMin() + " max=" + portalTo.getMax());
+            }
+        }
+
         // Only trigger if player enters a portal (was outside, now inside)
         if (portalTo != null && (portalFrom == null || !portalFrom.equals(portalTo))) {
-            plugin.getLogger().info("Portal triggered: " + portalTo.getName() + " by " + player.getName());
+            plugin.getLogger().info("[Portal] Portal triggered: " + portalTo.getName() + " by " + player.getName());
             portalTo.execute(player.getName());
         }
     }

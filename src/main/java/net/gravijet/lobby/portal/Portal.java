@@ -5,7 +5,11 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.configuration.serialization.SerializableAs;
+import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,17 +63,27 @@ public class Portal implements ConfigurationSerializable {
 
     public boolean contains(Location location) {
         if (location.getWorld() == null) {
+            Bukkit.getLogger().warning("[Portal] Location has no world: " + location);
             return false;
         }
         if (!location.getWorld().getName().equals(worldName)) {
+            Bukkit.getLogger().warning("[Portal] World mismatch. Portal world: " + worldName + ", Location world: " + location.getWorld().getName());
             return false;
         }
         double x = location.getX();
         double y = location.getY();
         double z = location.getZ();
-        return x >= min.getX() && x <= max.getX()
+
+        boolean inPortal = x >= min.getX() && x <= max.getX()
                 && y >= min.getY() && y <= max.getY()
                 && z >= min.getZ() && z <= max.getZ();
+
+        if (inPortal) {
+            Bukkit.getLogger().info("[Portal] Location " + x + "," + y + "," + z + " is INSIDE portal '" + name + "'");
+            Bukkit.getLogger().info("[Portal] Bounds: min=" + min + " max=" + max);
+        }
+
+        return inPortal;
     }
 
     /**
@@ -77,21 +91,104 @@ public class Portal implements ConfigurationSerializable {
      * @param playerName the player to affect
      */
     public void execute(String playerName) {
+        Bukkit.getLogger().info("[Portal] Executing portal '" + name + "' for player " + playerName);
+        Bukkit.getLogger().info("[Portal] Type: " + type + ", Value: " + value);
+
         switch (type) {
             case SERVER:
-                // BungeeCord / Velocity server send
-                String serverCommand = "server " + playerName + " " + value;
-                Bukkit.getLogger().info("[Portal] Sending " + playerName + " to server " + value + " via command: " + serverCommand);
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), serverCommand);
+                sendToServer(playerName, value);
                 break;
             case COMMAND:
                 // Run as console, replace {player} placeholder
                 String command = value.replace("{player}", playerName);
                 Bukkit.getLogger().info("[Portal] Executing command: " + command);
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                try {
+                    boolean success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                    Bukkit.getLogger().info("[Portal] Command dispatch result: " + success);
+                } catch (Exception e) {
+                    Bukkit.getLogger().severe("[Portal] Failed to execute command: " + e.getMessage());
+                    e.printStackTrace();
+                }
                 break;
             default:
+                Bukkit.getLogger().warning("[Portal] Unknown portal type: " + type);
                 break;
+        }
+    }
+
+    /**
+     * Send player to another server using BungeeCord/Velocity plugin messaging.
+     */
+    private void sendToServer(String playerName, String serverName) {
+        Player player = Bukkit.getPlayer(playerName);
+        if (player == null) {
+            Bukkit.getLogger().warning("[Portal] Player " + playerName + " not found online");
+            return;
+        }
+
+        Bukkit.getLogger().info("[Portal] Attempting to send " + playerName + " to server " + serverName);
+
+        // Try BungeeCord plugin messaging first
+        if (tryBungeeCordConnect(player, serverName)) {
+            return;
+        }
+
+        // Try Velocity plugin messaging
+        if (tryVelocityConnect(player, serverName)) {
+            return;
+        }
+
+        // Fallback to console command
+        Bukkit.getLogger().warning("[Portal] Plugin messaging not available, falling back to console command");
+        String serverCommand = "server " + playerName + " " + serverName;
+        try {
+            boolean success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), serverCommand);
+            Bukkit.getLogger().info("[Portal] Console command result: " + success);
+        } catch (Exception e) {
+            Bukkit.getLogger().severe("[Portal] All connection methods failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Try connecting via BungeeCord plugin messaging.
+     */
+    private boolean tryBungeeCordConnect(Player player, String serverName) {
+        try {
+            ByteArrayOutputStream b = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(b);
+
+            out.writeUTF("Connect");
+            out.writeUTF(serverName);
+
+            player.sendPluginMessage(Bukkit.getPluginManager().getPlugin("AntiBlockUpdate"),
+                    "BungeeCord", b.toByteArray());
+
+            Bukkit.getLogger().info("[Portal] Sent BungeeCord connect request for " + serverName);
+            return true;
+        } catch (Exception e) {
+            Bukkit.getLogger().warning("[Portal] BungeeCord messaging failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Try connecting via Velocity plugin messaging.
+     */
+    private boolean tryVelocityConnect(Player player, String serverName) {
+        try {
+            ByteArrayOutputStream b = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(b);
+
+            out.writeUTF(serverName);
+
+            player.sendPluginMessage(Bukkit.getPluginManager().getPlugin("AntiBlockUpdate"),
+                    "velocity:main", b.toByteArray());
+
+            Bukkit.getLogger().info("[Portal] Sent Velocity connect request for " + serverName);
+            return true;
+        } catch (Exception e) {
+            Bukkit.getLogger().warning("[Portal] Velocity messaging failed: " + e.getMessage());
+            return false;
         }
     }
 

@@ -53,6 +53,10 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
             case "reload":
                 cmdReload(sender);
                 break;
+            case "test":
+            case "debug":
+                cmdTest(sender);
+                break;
             default:
                 sendHelp(sender);
                 break;
@@ -68,6 +72,7 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(" §7● §c/portal list §7» §fList all portals.");
         sender.sendMessage(" §7● §c/portal info <name> §7» §fShow portal details.");
         sender.sendMessage(" §7● §c/portal reload §7» §fReload portals from file.");
+        sender.sendMessage(" §7● §c/portal test §7» §fDebug: Check if you're inside a portal.");
     }
 
     private void cmdWand(CommandSender sender) {
@@ -178,10 +183,50 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§c§lGraviJet §7» §fPortals reloaded.");
     }
 
+    private void cmdTest(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("§cOnly players can use this command.");
+            return;
+        }
+        Player player = (Player) sender;
+        org.bukkit.Location location = player.getLocation();
+
+        Portal portal = portalManager.getPortalAt(location);
+        if (portal != null) {
+            sender.sendMessage("§c§lGraviJet §7» §fYou are INSIDE portal: §e" + portal.getName());
+            sender.sendMessage("§7Type: §f" + portal.getType());
+            sender.sendMessage("§7Value: §f" + portal.getValue());
+            sender.sendMessage("§7World: §f" + portal.getWorldName());
+            sender.sendMessage("§7Your position: §f" + formatVector(location.toVector()));
+            sender.sendMessage("§7Portal bounds: §f" + formatVector(portal.getMin()) + " → " + formatVector(portal.getMax()));
+
+            // Test if portal would trigger
+            Portal portalFrom = portalManager.getPortalAt(location.clone().subtract(0, 1, 0));
+            if (portalFrom == null || !portalFrom.equals(portal)) {
+                sender.sendMessage("§a✓ Portal would trigger (entering from outside)");
+            } else {
+                sender.sendMessage("§7! Portal would NOT trigger (already inside)");
+            }
+        } else {
+            sender.sendMessage("§c§lGraviJet §7» §fYou are NOT inside any portal.");
+            sender.sendMessage("§7Your position: §f" + formatVector(location.toVector()));
+            sender.sendMessage("§7World: §f" + location.getWorld().getName());
+
+            // List all portals for debugging
+            List<Portal> portals = new ArrayList<>(portalManager.getAllPortals());
+            if (!portals.isEmpty()) {
+                sender.sendMessage("§7Available portals:");
+                for (Portal p : portals) {
+                    sender.sendMessage("§7- §f" + p.getName() + " §8(" + p.getWorldName() + "§8)");
+                }
+            }
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            List<String> completions = Arrays.asList("wand", "create", "delete", "list", "info", "reload");
+            List<String> completions = Arrays.asList("wand", "create", "delete", "list", "info", "reload", "test", "debug");
             return completions.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
