@@ -1,0 +1,12 @@
+anti-block-update:
+  physics: true
+  falling-blocks: true
+  fire-spread: true
+  ice-snow-melt: true
+  plant-growth: true
+  liquid-flow: false
+  fire-ignition: true
+  bed-interact: true
+
+portal:
+  enabled: true

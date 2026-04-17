@@ -1,16 +1,14 @@
 package net.gravijet.antiblockupdate;
 
-import net.gravijet.antiblockupdate.listener.BedInteractListener;
 import net.gravijet.lobby.portal.*;
 import org.bukkit.Material;
-import org.bukkit.block.BlockFace;
-import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.EnumSet;
@@ -20,27 +18,11 @@ public class Main extends JavaPlugin implements Listener {
 
     private PortalManager portalManager;
 
-    /**
-     * Fallende Entitäten, die durch EntityChangeBlockEvent abgedeckt werden.
-     * Sand, Kies, Drachenej, Amboss usw.
-     */
-    private static final Set<EntityType> FALLING_ENTITIES = EnumSet.of(
-            EntityType.FALLING_BLOCK
-    );
-
-    /**
-     * Blöcke, die durch BlockPhysicsEvent NICHT weitergeleitet werden sollen.
-     * Enthält alle Materialien, die auf Schwerkraft oder Nachbar-Updates reagieren.
-     * ACHTUNG: Redstone und Flüssigkeiten sind hier entfernt, damit sie funktionieren.
-     */
     private static final Set<Material> PHYSICS_BLACKLIST = EnumSet.of(
-            // Schwerkraft-Blöcke
             Material.SAND,
             Material.GRAVEL,
             Material.ANVIL,
             Material.DRAGON_EGG,
-            // Flüssigkeiten werden jetzt erlaubt (nicht mehr in Blacklist)
-            // Hängende / stützpunktabhängige Blöcke (außer Redstone)
             Material.TORCH,
             Material.LEVER,
             Material.STONE_BUTTON,
@@ -51,7 +33,6 @@ public class Main extends JavaPlugin implements Listener {
             Material.WALL_SIGN,
             Material.LADDER,
             Material.VINE,
-            // Pflanzen / Blumen
             Material.YELLOW_FLOWER,
             Material.RED_ROSE,
             Material.LONG_GRASS,
@@ -67,146 +48,104 @@ public class Main extends JavaPlugin implements Listener {
             Material.COCOA,
             Material.PUMPKIN_STEM,
             Material.MELON_STEM,
-            // Kaktus, Kürbis, Melone
             Material.PUMPKIN,
             Material.MELON_BLOCK,
-            // Hängende Blöcke
             Material.RAILS,
             Material.POWERED_RAIL,
             Material.DETECTOR_RAIL,
             Material.ACTIVATOR_RAIL,
-            // Türen / Falltüren
             Material.WOODEN_DOOR,
             Material.IRON_DOOR_BLOCK,
             Material.TRAP_DOOR,
-            // Druckplatten
             Material.STONE_PLATE,
             Material.WOOD_PLATE,
             Material.IRON_PLATE,
             Material.GOLD_PLATE,
-            // Zaun- / Tor-Verbinder (Update bei Nachbarn)
             Material.FENCE_GATE,
-            // Sonstige physik-abhängige (außer Redstone)
             Material.FIRE,
             Material.SNOW
     );
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
-        getServer().getPluginManager().registerEvents(new BedInteractListener(), this);
 
-        // Initialize Portal System
-        portalManager = new PortalManager(this);
-        getServer().getPluginManager().registerEvents(new PortalListener(this, portalManager), this);
-        getCommand("portal").setExecutor(new PortalCommand(portalManager));
+        if (getConfig().getBoolean("portal.enabled", true)) {
+            portalManager = new PortalManager(this);
+            getServer().getPluginManager().registerEvents(new PortalListener(this, portalManager), this);
+            getCommand("portal").setExecutor(new PortalCommand(portalManager));
+            getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
+        }
 
-        // Register plugin messaging channels for BungeeCord/Velocity
-        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
-        getServer().getMessenger().registerOutgoingPluginChannel(this, "velocity:main");
-        getLogger().info("Registered BungeeCord and Velocity plugin messaging channels");
-
-        getLogger().info("AntiBlockUpdate aktiviert – alle Block-Updates deaktiviert.");
-        getLogger().info("Portal system loaded.");
+        getLogger().info("AntiBlockUpdate enabled.");
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("AntiBlockUpdate deaktiviert.");
+        getLogger().info("AntiBlockUpdate disabled.");
     }
 
-    // -------------------------------------------------------------------------
-    // 1) Physikalische Block-Updates (Sand-in-der-Luft, Blume-ohne-Untergrund…)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Blockiert physikalische Block-Updates nur für bestimmte Materialien (PHYSICS_BLACKLIST).
-     *
-     * HIGHEST + ignoreCancelled=true: Wir greifen als Letzter ein,
-     * sodass andere Plugins zuerst reagieren können; danach canceln wir hart.
-     *
-     * Durch das selektive Canceln bleibt Sand in der Luft, bleiben Blumen
-     * an nicht unterstützten Positionen erhalten, aber Redstone und Flüssigkeiten funktionieren.
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPhysics(BlockPhysicsEvent event) {
-        if (PHYSICS_BLACKLIST.contains(event.getBlock().getType())) {
+        if (getConfig().getBoolean("anti-block-update.physics", true)
+                && PHYSICS_BLACKLIST.contains(event.getBlock().getType())) {
             event.setCancelled(true);
         }
-        // Andere Materialien (Redstone, Wasser, Lava) werden nicht blockiert
     }
 
-    // -------------------------------------------------------------------------
-    // 2) Sand / Kies Schwerkraft (Entity-basiert)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Verhindert, dass Sand/Kies-Entitäten entstehen.
-     * Ohne diesen Handler würde Schwerkraft erst durch BlockPhysicsEvent,
-     * dann aber über eine FallingBlock-Entität umgesetzt – dieser Handler
-     * schließt die zweite Lücke.
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
-        if (FALLING_ENTITIES.contains(event.getEntityType())) {
+        if (getConfig().getBoolean("anti-block-update.falling-blocks", true)
+                && event.getEntityType() == EntityType.FALLING_BLOCK) {
             event.setCancelled(true);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // 3) Feuer-Ausbreitung
-    // -------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockSpread(BlockSpreadEvent event) {
-        event.setCancelled(true);
+        if (getConfig().getBoolean("anti-block-update.fire-spread", true)) {
+            event.setCancelled(true);
+        }
     }
-
-    // -------------------------------------------------------------------------
-    // 4) Eis schmelzen / Schnee schmelzen (BlockFadeEvent)
-    // -------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFade(BlockFadeEvent event) {
-        event.setCancelled(true);
+        if (getConfig().getBoolean("anti-block-update.ice-snow-melt", true)) {
+            event.setCancelled(true);
+        }
     }
-
-    // -------------------------------------------------------------------------
-    // 5) Gras- / Pflanzen-Wachstum
-    // -------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockGrow(BlockGrowEvent event) {
-        event.setCancelled(true);
+        if (getConfig().getBoolean("anti-block-update.plant-growth", true)) {
+            event.setCancelled(true);
+        }
     }
 
-    // -------------------------------------------------------------------------
-    // 6) Wasser / Lava fließen
-    // -------------------------------------------------------------------------
-
-    /**
-     * Erlaubt das Fließen von Wasser und Lava in benachbarte Felder.
-     * (Nicht mehr blockiert)
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFromTo(BlockFromToEvent event) {
-        // Kein Cancelling mehr - Wasser und Lava fließen normal
-        // Optional: Nur bestimmte Richtungen blockieren, aber für jetzt alles erlauben
+        if (getConfig().getBoolean("anti-block-update.liquid-flow", false)) {
+            event.setCancelled(true);
+        }
     }
 
-    // -------------------------------------------------------------------------
-    // 7) Feuer-Entzündung durch Block-Updates
-    // -------------------------------------------------------------------------
-
-    /**
-     * Verhindert, dass Feuer neue Blöcke entzündet (Ergänzung zu BlockSpreadEvent).
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockIgnite(BlockIgniteEvent event) {
-        BlockIgniteEvent.IgniteCause cause = event.getCause();
-        // Natürliche Ausbreitung und Blitze blockieren; manuelles Entzünden erlauben
-        if (cause == BlockIgniteEvent.IgniteCause.SPREAD
-                || cause == BlockIgniteEvent.IgniteCause.LAVA) {
+        if (getConfig().getBoolean("anti-block-update.fire-ignition", true)) {
+            BlockIgniteEvent.IgniteCause cause = event.getCause();
+            if (cause == BlockIgniteEvent.IgniteCause.SPREAD || cause == BlockIgniteEvent.IgniteCause.LAVA) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBedInteract(PlayerInteractEvent event) {
+        if (getConfig().getBoolean("anti-block-update.bed-interact", true)
+                && event.getAction() == Action.RIGHT_CLICK_BLOCK
+                && event.getClickedBlock() != null
+                && event.getClickedBlock().getType() == Material.BED_BLOCK) {
             event.setCancelled(true);
         }
     }

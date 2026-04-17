@@ -1,6 +1,6 @@
 package net.gravijet.lobby.portal;
 
-import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -15,9 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Handles /portal command.
- */
 public class PortalCommand implements CommandExecutor, TabCompleter {
 
     private final PortalManager portalManager;
@@ -32,34 +29,16 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
             sendHelp(sender);
             return true;
         }
-
-        String sub = args[0].toLowerCase();
-        switch (sub) {
-            case "wand":
-                cmdWand(sender);
-                break;
-            case "create":
-                cmdCreate(sender, args);
-                break;
-            case "delete":
-                cmdDelete(sender, args);
-                break;
-            case "list":
-                cmdList(sender);
-                break;
-            case "info":
-                cmdInfo(sender, args);
-                break;
-            case "reload":
-                cmdReload(sender);
-                break;
+        switch (args[0].toLowerCase()) {
+            case "wand":   cmdWand(sender); break;
+            case "create": cmdCreate(sender, args); break;
+            case "delete": cmdDelete(sender, args); break;
+            case "list":   cmdList(sender); break;
+            case "info":   cmdInfo(sender, args); break;
+            case "reload": cmdReload(sender); break;
             case "test":
-            case "debug":
-                cmdTest(sender);
-                break;
-            default:
-                sendHelp(sender);
-                break;
+            case "debug":  cmdTest(sender); break;
+            default: sendHelp(sender); break;
         }
         return true;
     }
@@ -72,25 +51,19 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(" §7● §c/portal list §7» §fList all portals.");
         sender.sendMessage(" §7● §c/portal info <name> §7» §fShow portal details.");
         sender.sendMessage(" §7● §c/portal reload §7» §fReload portals from file.");
-        sender.sendMessage(" §7● §c/portal test §7» §fDebug: Check if you're inside a portal.");
+        sender.sendMessage(" §7● §c/portal test §7» §fCheck if you're inside a portal.");
     }
 
     private void cmdWand(CommandSender sender) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("§cOnly players can use this command.");
-            return;
-        }
+        if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can use this command."); return; }
         Player player = (Player) sender;
         player.getInventory().addItem(new ItemStack(Material.BLAZE_ROD, 1));
-        player.sendMessage("§c§lGraviJet §7» §fYou have received the selection wand.");
-        player.sendMessage("§7Right-click a block to set first point, sneak + right-click for second point.");
+        player.sendMessage("§c§lGraviJet §7» §fYou received the selection wand.");
+        player.sendMessage("§7Right-click to set point 1, sneak + right-click for point 2.");
     }
 
     private void cmdCreate(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("§cOnly players can create portals.");
-            return;
-        }
+        if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can create portals."); return; }
         if (args.length < 4) {
             sender.sendMessage("§cUsage: /portal create <name> <type> <value>");
             sender.sendMessage("§7Types: SERVER, COMMAND");
@@ -98,44 +71,34 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         }
         Player player = (Player) sender;
         String name = args[1];
-        String typeStr = args[2].toUpperCase();
-        String value = String.join(" ", Arrays.copyOfRange(args, 3, args.length));
-
         PortalType type;
         try {
-            type = PortalType.valueOf(typeStr);
+            type = PortalType.valueOf(args[2].toUpperCase());
         } catch (IllegalArgumentException e) {
-            sender.sendMessage("§cInvalid portal type. Use SERVER or COMMAND.");
+            sender.sendMessage("§cInvalid type. Use SERVER or COMMAND.");
             return;
         }
+        String value = String.join(" ", Arrays.copyOfRange(args, 3, args.length));
 
         if (!portalManager.hasCompleteSelection(player)) {
-            sender.sendMessage("§cYou need to select two points with the wand first.");
+            sender.sendMessage("§cSelect two points with the wand first.");
             return;
         }
-
         if (portalManager.getPortal(name) != null) {
             sender.sendMessage("§cA portal with that name already exists.");
             return;
         }
-
-        boolean success = portalManager.createPortalFromSelection(player, name, type, value);
-        if (success) {
-            sender.sendMessage("§c§lGraviJet §7» §fPortal '" + name + "' created successfully.");
+        if (portalManager.createPortalFromSelection(player, name, type, value)) {
+            sender.sendMessage("§c§lGraviJet §7» §fPortal '" + name + "' created.");
         } else {
             sender.sendMessage("§cFailed to create portal.");
         }
     }
 
     private void cmdDelete(CommandSender sender, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage("§cUsage: /portal delete <name>");
-            return;
-        }
-        String name = args[1];
-        boolean deleted = portalManager.deletePortal(name);
-        if (deleted) {
-            sender.sendMessage("§c§lGraviJet §7» §fPortal '" + name + "' deleted.");
+        if (args.length < 2) { sender.sendMessage("§cUsage: /portal delete <name>"); return; }
+        if (portalManager.deletePortal(args[1])) {
+            sender.sendMessage("§c§lGraviJet §7» §fPortal '" + args[1] + "' deleted.");
         } else {
             sender.sendMessage("§cPortal not found.");
         }
@@ -143,39 +106,23 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
 
     private void cmdList(CommandSender sender) {
         List<Portal> portals = new ArrayList<>(portalManager.getAllPortals());
-        if (portals.isEmpty()) {
-            sender.sendMessage("§c§lGraviJet §7» §fNo portals defined.");
-            return;
-        }
+        if (portals.isEmpty()) { sender.sendMessage("§c§lGraviJet §7» §fNo portals defined."); return; }
         sender.sendMessage("§c§lGraviJet §7» §fPortals (" + portals.size() + "):");
-        for (Portal portal : portals) {
-            sender.sendMessage("§7- §f" + portal.getName() + " §8(" + portal.getType() + "§8)");
+        for (Portal p : portals) {
+            sender.sendMessage("§7- §f" + p.getName() + " §8(" + p.getType() + "§8)");
         }
     }
 
     private void cmdInfo(CommandSender sender, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage("§cUsage: /portal info <name>");
-            return;
-        }
-        String name = args[1];
-        Portal portal = portalManager.getPortal(name);
-        if (portal == null) {
-            sender.sendMessage("§cPortal not found.");
-            return;
-        }
+        if (args.length < 2) { sender.sendMessage("§cUsage: /portal info <name>"); return; }
+        Portal portal = portalManager.getPortal(args[1]);
+        if (portal == null) { sender.sendMessage("§cPortal not found."); return; }
         sender.sendMessage("§c§lGraviJet §7» §fPortal Info:");
         sender.sendMessage("§7Name: §f" + portal.getName());
         sender.sendMessage("§7Type: §f" + portal.getType());
         sender.sendMessage("§7Value: §f" + portal.getValue());
         sender.sendMessage("§7World: §f" + portal.getWorldName());
-        Vector min = portal.getMin();
-        Vector max = portal.getMax();
-        sender.sendMessage("§7Bounds: §f" + formatVector(min) + " → " + formatVector(max));
-    }
-
-    private String formatVector(Vector v) {
-        return String.format("(%d, %d, %d)", (int) v.getX(), (int) v.getY(), (int) v.getZ());
+        sender.sendMessage("§7Bounds: §f" + fv(portal.getMin()) + " → " + fv(portal.getMax()));
     }
 
     private void cmdReload(CommandSender sender) {
@@ -184,71 +131,48 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdTest(CommandSender sender) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("§cOnly players can use this command.");
-            return;
-        }
+        if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can use this command."); return; }
         Player player = (Player) sender;
-        org.bukkit.Location location = player.getLocation();
-
+        Location location = player.getLocation();
         Portal portal = portalManager.getPortalAt(location);
         if (portal != null) {
-            sender.sendMessage("§c§lGraviJet §7» §fYou are INSIDE portal: §e" + portal.getName());
-            sender.sendMessage("§7Type: §f" + portal.getType());
-            sender.sendMessage("§7Value: §f" + portal.getValue());
-            sender.sendMessage("§7World: §f" + portal.getWorldName());
-            sender.sendMessage("§7Your position: §f" + formatVector(location.toVector()));
-            sender.sendMessage("§7Portal bounds: §f" + formatVector(portal.getMin()) + " → " + formatVector(portal.getMax()));
-
-            // Test if portal would trigger
-            Portal portalFrom = portalManager.getPortalAt(location.clone().subtract(0, 1, 0));
-            if (portalFrom == null || !portalFrom.equals(portal)) {
-                sender.sendMessage("§a✓ Portal would trigger (entering from outside)");
-            } else {
-                sender.sendMessage("§7! Portal would NOT trigger (already inside)");
-            }
+            sender.sendMessage("§c§lGraviJet §7» §aInside portal: §e" + portal.getName());
+            sender.sendMessage("§7Type: §f" + portal.getType() + " §7Value: §f" + portal.getValue());
+            sender.sendMessage("§7Bounds: §f" + fv(portal.getMin()) + " → " + fv(portal.getMax()));
         } else {
-            sender.sendMessage("§c§lGraviJet §7» §fYou are NOT inside any portal.");
-            sender.sendMessage("§7Your position: §f" + formatVector(location.toVector()));
-            sender.sendMessage("§7World: §f" + location.getWorld().getName());
-
-            // List all portals for debugging
+            sender.sendMessage("§c§lGraviJet §7» §fNot inside any portal.");
+            sender.sendMessage("§7Position: §f" + fv(location.toVector()) + " §7World: §f" + location.getWorld().getName());
             List<Portal> portals = new ArrayList<>(portalManager.getAllPortals());
             if (!portals.isEmpty()) {
-                sender.sendMessage("§7Available portals:");
-                for (Portal p : portals) {
-                    sender.sendMessage("§7- §f" + p.getName() + " §8(" + p.getWorldName() + "§8)");
-                }
+                sender.sendMessage("§7Portals: §f" + portals.stream().map(Portal::getName).collect(Collectors.joining(", ")));
             }
         }
+    }
+
+    private String fv(Vector v) {
+        return String.format("(%d, %d, %d)", (int) v.getX(), (int) v.getY(), (int) v.getZ());
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            List<String> completions = Arrays.asList("wand", "create", "delete", "list", "info", "reload", "test", "debug");
-            return completions.stream()
+            return Arrays.asList("wand", "create", "delete", "list", "info", "reload", "test").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
             if (sub.equals("delete") || sub.equals("info")) {
-                // Tab complete portal names
                 return portalManager.getAllPortals().stream()
                         .map(Portal::getName)
-                        .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
-            }
-            if (sub.equals("create")) {
-                // No completion for name
             }
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("create")) {
-            // Tab complete portal types
             return Arrays.stream(PortalType.values())
                     .map(Enum::name)
-                    .filter(type -> type.toLowerCase().startsWith(args[2].toLowerCase()))
+                    .filter(t -> t.toLowerCase().startsWith(args[2].toLowerCase()))
                     .collect(Collectors.toList());
         }
         return new ArrayList<>();
