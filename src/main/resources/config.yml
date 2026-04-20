@@ -1,12 +1,242 @@
 anti-block-update:
-  physics: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHYSICS  (BlockPhysicsEvent)
+  # Prevents blocks from dropping/disappearing due to physics updates.
+  # ═══════════════════════════════════════════════════════════════════════════
+  physics:
+    enabled: true
+    # Fine-grained per-block control. Only evaluated when enabled: true.
+    blocks:
+      SAND: true
+      GRAVEL: true
+      ANVIL: true
+      DRAGON_EGG: true
+      TORCH: true
+      LEVER: true
+      STONE_BUTTON: true
+      WOOD_BUTTON: true
+      TRIPWIRE_HOOK: true
+      TRIPWIRE: true
+      SIGN_POST: true
+      WALL_SIGN: true
+      LADDER: true
+      VINE: true
+      YELLOW_FLOWER: true
+      RED_ROSE: true
+      LONG_GRASS: true
+      DEAD_BUSH: true
+      BROWN_MUSHROOM: true
+      RED_MUSHROOM: true
+      CACTUS: true
+      SUGAR_CANE_BLOCK: true
+      WHEAT: true
+      CARROT: true
+      POTATO: true
+      NETHER_WARTS: true
+      COCOA: true
+      PUMPKIN_STEM: true
+      MELON_STEM: true
+      PUMPKIN: true
+      MELON_BLOCK: true
+      RAILS: true
+      POWERED_RAIL: true
+      DETECTOR_RAIL: true
+      ACTIVATOR_RAIL: true
+      WOODEN_DOOR: true
+      IRON_DOOR_BLOCK: true
+      TRAP_DOOR: true
+      STONE_PLATE: true
+      WOOD_PLATE: true
+      IRON_PLATE: true
+      GOLD_PLATE: true
+      FENCE_GATE: true
+      FIRE: true
+      SNOW: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FALLING BLOCKS  (EntityChangeBlockEvent - FALLING_BLOCK)
+  # Prevents sand, gravel, anvil etc. from landing after falling.
+  # ═══════════════════════════════════════════════════════════════════════════
   falling-blocks: true
-  fire-spread: true
-  ice-snow-melt: true
-  plant-growth: true
-  liquid-flow: false
-  fire-ignition: true
-  bed-interact: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FIRE
+  # ═══════════════════════════════════════════════════════════════════════════
+  fire:
+    # Prevents fire from spreading to adjacent blocks. (BlockSpreadEvent)
+    spread: true
+    # Prevents fire from burning/destroying blocks. (BlockBurnEvent)
+    burn: true
+    # Prevents fire from going out on its own. (BlockFadeEvent on FIRE)
+    extinguish: false
+    # Controls which ignition causes are blocked. (BlockIgniteEvent)
+    ignition:
+      enabled: true
+      causes:
+        SPREAD: true        # fire spreading from burning block
+        LAVA: true          # lava setting nearby blocks on fire
+        FLINT_AND_STEEL: false  # player using flint & steel
+        LIGHTNING: false    # lightning strike
+        FIREBALL: true      # ghast fireball
+        EXPLOSION: true     # explosion causing fire
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BLOCK SPREAD  (BlockSpreadEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  spread:
+    # Grass block spreading to adjacent dirt.
+    grass: true
+    # Mycelium spreading to adjacent dirt.
+    mycelium: true
+    # Mushrooms spreading to adjacent blocks.
+    mushroom: true
+    # Vines growing to adjacent blocks.
+    vine: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ICE  (BlockFadeEvent / BlockFormEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  ice:
+    melt: true    # Prevents ice from melting.
+    form: false   # Prevents water from freezing into ice.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SNOW  (BlockFadeEvent / BlockFormEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  snow:
+    melt: true    # Prevents snow layers from melting.
+    form: false   # Prevents snow from falling and forming layers.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FARMLAND  (BlockFadeEvent on SOIL)
+  # Prevents farmland from drying out and turning to dirt.
+  # ═══════════════════════════════════════════════════════════════════════════
+  farmland-dry: false
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BLOCK FORMATION  (BlockFormEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  block-form:
+    obsidian: false     # Prevents lava+water forming obsidian.
+    cobblestone: false  # Prevents lava+water forming cobblestone.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PLANT GROWTH  (BlockGrowEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  plant-growth:
+    enabled: true
+    # Fine-grained per-plant control. Only evaluated when enabled: true.
+    plants:
+      WHEAT: true
+      CARROT: true
+      POTATO: true
+      MELON_STEM: true
+      PUMPKIN_STEM: true
+      NETHER_WARTS: true
+      COCOA: true
+      CACTUS: true
+      SUGAR_CANE_BLOCK: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LIQUID FLOW  (BlockFromToEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  liquid-flow:
+    water: false
+    lava: false
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DRAGON EGG  (BlockFromToEvent on DRAGON_EGG)
+  # Prevents the dragon egg from teleporting when clicked.
+  # ═══════════════════════════════════════════════════════════════════════════
+  dragon-egg-teleport: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LEAVES DECAY  (LeavesDecayEvent)
+  # Prevents leaf blocks from decaying when disconnected from logs.
+  # ═══════════════════════════════════════════════════════════════════════════
+  leaves-decay: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STRUCTURE GROWTH  (StructureGrowEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  structure-grow:
+    tree: false           # Prevents saplings from growing into trees.
+    giant-mushroom: false # Prevents mushrooms from growing giant.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ENTITY BLOCK CHANGES  (EntityChangeBlockEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  entity-block:
+    enderman: true           # Prevents endermen from picking up/placing blocks.
+    sheep-eat-grass: true    # Prevents sheep from eating grass (turns to dirt).
+    silverfish: true         # Prevents silverfish from entering/leaving stone.
+    wither: true             # Prevents the Wither boss from breaking blocks.
+    zombie-break-door: false # Prevents zombies from breaking wooden doors.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # EXPLOSIONS  (EntityExplodeEvent)
+  # Clears the block damage list — explosion still occurs but no blocks are destroyed.
+  # ═══════════════════════════════════════════════════════════════════════════
+  explosions:
+    tnt: false
+    creeper: false
+    wither: false
+    fireball: false
+    wither-skull: false
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PISTONS  (BlockPistonExtendEvent / BlockPistonRetractEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  pistons:
+    extend: false
+    retract: false
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # REDSTONE  (BlockRedstoneEvent)
+  # Freezes all redstone current changes (effectively disables redstone).
+  # ═══════════════════════════════════════════════════════════════════════════
+  redstone-change: false
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DISPENSERS & DROPPERS  (BlockDispenseEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  dispenser-dispense: false
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BLOCK BREAKING / PLACING / DAMAGE  (BlockBreakEvent, BlockPlaceEvent, BlockDamageEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  block-break: false   # Prevents all players from breaking blocks.
+  block-place: false   # Prevents all players from placing blocks.
+  block-damage: false  # Prevents block-breaking animation (first hit).
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BUCKETS  (PlayerBucketFillEvent / PlayerBucketEmptyEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  buckets:
+    fill: false   # Prevents picking up water/lava with a bucket.
+    empty: false  # Prevents placing water/lava from a bucket.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PLAYER INTERACTIONS  (PlayerInteractEvent - RIGHT_CLICK_BLOCK)
+  # ═══════════════════════════════════════════════════════════════════════════
+  interact:
+    bed: true                 # Prevents sleeping in beds.
+    doors: false              # Prevents opening wooden doors, trapdoors, fence gates.
+    buttons: false            # Prevents pressing stone/wood buttons.
+    lever: false              # Prevents toggling levers.
+    pressure-plates: false    # Prevents activating pressure plates.
+    note-block: false         # Prevents changing note block pitch.
+    jukebox: false            # Prevents inserting/removing records.
+    chests: false             # Prevents opening chests and ender chests.
+    furnace: false            # Prevents opening furnaces.
+    crafting-table: false     # Prevents using crafting tables.
+    enchanting-table: false   # Prevents using enchanting tables.
+    anvil: false              # Prevents using anvils.
+    brewing-stand: false      # Prevents using brewing stands.
+    beacon: false             # Prevents using beacons.
+    dispenser: false          # Prevents opening dispenser/dropper inventory.
+    hopper: false             # Prevents opening hopper inventory.
 
 portal:
   enabled: true
