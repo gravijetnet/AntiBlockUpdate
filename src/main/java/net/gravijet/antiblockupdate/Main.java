@@ -8,9 +8,16 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
+import org.bukkit.entity.Monster;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -394,6 +401,96 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucketEmpty(PlayerBucketEmptyEvent event) {
         if (getConfig().getBoolean("anti-block-update.buckets.empty", false))
+            event.setCancelled(true);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MOB SPAWNING
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCreatureSpawn(CreatureSpawnEvent event) {
+        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.NATURAL) return;
+        if (event.getEntity() instanceof Monster) {
+            if (getConfig().getBoolean("anti-block-update.mob-spawn.natural-monsters", false))
+                event.setCancelled(true);
+        } else {
+            if (getConfig().getBoolean("anti-block-update.mob-spawn.natural-mobs", false))
+                event.setCancelled(true);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMBAT
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof Player) {
+            if (event.getEntity() instanceof Player) {
+                if (getConfig().getBoolean("anti-block-update.combat.block-pvp", false))
+                    event.setCancelled(true);
+            } else if (event.getEntity() instanceof Monster) {
+                if (getConfig().getBoolean("anti-block-update.combat.block-hit-monsters", false))
+                    event.setCancelled(true);
+            } else {
+                if (getConfig().getBoolean("anti-block-update.combat.block-hit-mobs", false))
+                    event.setCancelled(true);
+            }
+        } else if (event.getEntity() instanceof Player && event.getDamager() instanceof Monster) {
+            if (getConfig().getBoolean("anti-block-update.combat.block-monster-damage", false))
+                event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (event instanceof EntityDamageByEntityEvent) return;
+        if (!(event.getEntity() instanceof Player)) return;
+        if (event.getCause() == EntityDamageEvent.DamageCause.FALL
+                && getConfig().getBoolean("anti-block-update.combat.block-fall-damage", false))
+            event.setCancelled(true);
+        else if (event.getCause() == EntityDamageEvent.DamageCause.VOID
+                && getConfig().getBoolean("anti-block-update.combat.block-void-damage", false))
+            event.setCancelled(true);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ITEM HANDLING
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        if (getConfig().getBoolean("anti-block-update.item-drop", false))
+            event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerPickupItem(PlayerPickupItemEvent event) {
+        if (getConfig().getBoolean("anti-block-update.item-pickup", false))
+            event.setCancelled(true);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // HUNGER
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onFoodLevelChange(FoodLevelChangeEvent event) {
+        if (!(event.getEntity() instanceof Player)) return;
+        Player player = (Player) event.getEntity();
+        if (event.getFoodLevel() < player.getFoodLevel()
+                && getConfig().getBoolean("anti-block-update.hunger-depletion", false))
+            event.setCancelled(true);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // WEATHER
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWeatherChange(WeatherChangeEvent event) {
+        if (getConfig().getBoolean("anti-block-update.weather-change", false))
             event.setCancelled(true);
     }
 

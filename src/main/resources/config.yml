@@ -78,8 +78,8 @@ anti-block-update:
         LAVA: true          # lava setting nearby blocks on fire
         FLINT_AND_STEEL: false  # player using flint & steel
         LIGHTNING: false    # lightning strike
-        FIREBALL: true      # ghast fireball
-        EXPLOSION: true     # explosion causing fire
+        FIREBALL: false      # ghast fireball
+        EXPLOSION: false     # explosion causing fire
 
   # ═══════════════════════════════════════════════════════════════════════════
   # BLOCK SPREAD  (BlockSpreadEvent)
@@ -237,6 +237,42 @@ anti-block-update:
     beacon: false             # Prevents using beacons.
     dispenser: false          # Prevents opening dispenser/dropper inventory.
     hopper: false             # Prevents opening hopper inventory.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MOB SPAWNING  (CreatureSpawnEvent - NATURAL reason only)
+  # ═══════════════════════════════════════════════════════════════════════════
+  mob-spawn:
+    natural-mobs: true       # Prevents passive mobs (animals etc.) from spawning naturally.
+    natural-monsters: true   # Prevents monsters (zombies, creepers etc.) from spawning naturally.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # COMBAT  (EntityDamageByEntityEvent / EntityDamageEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  combat:
+    block-pvp: false              # Prevents players from hitting other players.
+    block-hit-mobs: false         # Prevents players from hitting passive mobs.
+    block-hit-monsters: false     # Prevents players from hitting monsters.
+    block-monster-damage: false   # Prevents monsters from damaging players.
+    block-fall-damage: false      # Prevents players from taking fall damage.
+    block-void-damage: false      # Prevents players from dying in the void.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ITEM HANDLING  (PlayerDropItemEvent / PlayerPickupItemEvent)
+  # ═══════════════════════════════════════════════════════════════════════════
+  item-drop: false     # Prevents players from dropping items.
+  item-pickup: false   # Prevents players from picking up items from the ground.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # HUNGER  (FoodLevelChangeEvent)
+  # Prevents the hunger bar from depleting (eating to restore is still allowed).
+  # ═══════════════════════════════════════════════════════════════════════════
+  hunger-depletion: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WEATHER  (WeatherChangeEvent)
+  # Prevents weather from changing (blocks rain/storm/clear transitions).
+  # ═══════════════════════════════════════════════════════════════════════════
+  weather-change: true
 
 portal:
   enabled: true
