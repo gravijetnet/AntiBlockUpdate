@@ -167,7 +167,7 @@ public class Main extends JavaPlugin implements Listener {
                 if (getConfig().getBoolean("anti-block-update.spread.grass", true))
                     event.setCancelled(true);
                 break;
-            case MYCELIUM:
+            case MYCEL:
                 if (getConfig().getBoolean("anti-block-update.spread.mycelium", true))
                     event.setCancelled(true);
                 break;
