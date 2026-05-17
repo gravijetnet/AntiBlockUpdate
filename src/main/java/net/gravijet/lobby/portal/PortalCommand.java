@@ -91,7 +91,7 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         if (portalManager.createPortalFromSelection(player, name, type, value)) {
             sender.sendMessage("§c§lGraviJet §7» §fPortal '" + name + "' created.");
         } else {
-            sender.sendMessage("§cFailed to create portal.");
+            sender.sendMessage("§cFailed to create portal. Both selection points must be in the same world.");
         }
     }
 

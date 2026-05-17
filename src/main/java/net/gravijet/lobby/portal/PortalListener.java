@@ -55,7 +55,9 @@ public class PortalListener implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        playerInPortal.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        playerInPortal.remove(player.getUniqueId());
+        portalManager.clearSelection(player);
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -67,6 +69,12 @@ public class PortalListener implements Listener {
 
         event.setCancelled(true);
         int point = player.isSneaking() ? 2 : 1;
+        if (point == 2) {
+            String existingWorld = portalManager.getSelectionWorld(player);
+            if (existingWorld != null && !existingWorld.equals(event.getClickedBlock().getWorld().getName())) {
+                player.sendMessage("§cWarning: Both selection points must be in the same world.");
+            }
+        }
         portalManager.setSelection(player, event.getClickedBlock().getLocation(), point);
         String pointMsg = (point == 1) ? "§a§lfirst§f" : "§a§lsecond§f";
         player.sendMessage("§c§lGraviJet §7» §fSelection point " + pointMsg + " saved!");

@@ -3,13 +3,13 @@ package net.gravijet.antiblockupdate;
 import net.gravijet.lobby.portal.*;
 import org.bukkit.Material;
 import org.bukkit.TreeType;
-import org.bukkit.entity.EntityType;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Monster;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
-import org.bukkit.entity.Monster;
-import org.bukkit.entity.Player;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -29,6 +29,79 @@ public class Main extends JavaPlugin implements Listener {
     private PortalManager portalManager;
     private Set<Material> physicsBlacklist;
     private Set<Material> plantBlacklist;
+
+    // ── Cached config values (populated by buildSets on enable/reload) ──────
+    private boolean cfgPhysicsEnabled;
+    private boolean cfgFallingBlocks;
+    private boolean cfgEndermanBlock;
+    private boolean cfgSheepEatGrass;
+    private boolean cfgSilverfishBlock;
+    private boolean cfgWitherBlock;
+    private boolean cfgZombieBreakDoor;
+    private boolean cfgFireBurn;
+    private Set<BlockIgniteEvent.IgniteCause> cfgBlockedIgniteCauses;
+    private boolean cfgFireSpread;
+    private boolean cfgSpreadGrass;
+    private boolean cfgSpreadMycelium;
+    private boolean cfgSpreadMushroom;
+    private boolean cfgSpreadVine;
+    private boolean cfgIceMelt;
+    private boolean cfgSnowMelt;
+    private boolean cfgFireExtinguish;
+    private boolean cfgFarmlandDry;
+    private boolean cfgSnowForm;
+    private boolean cfgIceForm;
+    private boolean cfgObsidianForm;
+    private boolean cfgCobblestoneForm;
+    private boolean cfgPlantGrowthEnabled;
+    private boolean cfgWaterFlow;
+    private boolean cfgLavaFlow;
+    private boolean cfgDragonEggTeleport;
+    private boolean cfgLeavesDecay;
+    private boolean cfgGiantMushroomGrow;
+    private boolean cfgTreeGrow;
+    private boolean cfgTntExplosion;
+    private boolean cfgCreeperExplosion;
+    private boolean cfgWitherExplosion;
+    private boolean cfgFireballExplosion;
+    private boolean cfgWitherSkullExplosion;
+    private boolean cfgPistonExtend;
+    private boolean cfgPistonRetract;
+    private boolean cfgRedstoneChange;
+    private boolean cfgDispenserDispense;
+    private boolean cfgBlockBreak;
+    private boolean cfgBlockPlace;
+    private boolean cfgBlockDamage;
+    private boolean cfgBucketFill;
+    private boolean cfgBucketEmpty;
+    private boolean cfgNaturalMonsters;
+    private boolean cfgNaturalMobs;
+    private boolean cfgBlockPvp;
+    private boolean cfgBlockHitMonsters;
+    private boolean cfgBlockHitMobs;
+    private boolean cfgBlockMonsterDamage;
+    private boolean cfgBlockFallDamage;
+    private boolean cfgBlockVoidDamage;
+    private boolean cfgItemDrop;
+    private boolean cfgItemPickup;
+    private boolean cfgHungerDepletion;
+    private boolean cfgWeatherChange;
+    private boolean cfgInteractBed;
+    private boolean cfgInteractDoors;
+    private boolean cfgInteractButtons;
+    private boolean cfgInteractLever;
+    private boolean cfgInteractPressurePlates;
+    private boolean cfgInteractNoteBlock;
+    private boolean cfgInteractJukebox;
+    private boolean cfgInteractChests;
+    private boolean cfgInteractFurnace;
+    private boolean cfgInteractCraftingTable;
+    private boolean cfgInteractEnchantingTable;
+    private boolean cfgInteractAnvil;
+    private boolean cfgInteractBrewingStand;
+    private boolean cfgInteractBeacon;
+    private boolean cfgInteractDispenser;
+    private boolean cfgInteractHopper;
 
     private static final Set<Material> ALL_PHYSICS_BLOCKS = EnumSet.of(
             Material.SAND, Material.GRAVEL, Material.ANVIL, Material.DRAGON_EGG,
@@ -74,17 +147,111 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private void buildSets() {
+        FileConfiguration c = getConfig();
+
+        cfgPhysicsEnabled = c.getBoolean("anti-block-update.physics.enabled", true);
         physicsBlacklist = EnumSet.noneOf(Material.class);
         for (Material mat : ALL_PHYSICS_BLOCKS) {
-            if (getConfig().getBoolean("anti-block-update.physics.blocks." + mat.name(), true))
+            if (c.getBoolean("anti-block-update.physics.blocks." + mat.name(), true))
                 physicsBlacklist.add(mat);
         }
 
+        cfgPlantGrowthEnabled = c.getBoolean("anti-block-update.plant-growth.enabled", true);
         plantBlacklist = EnumSet.noneOf(Material.class);
         for (Material mat : ALL_PLANT_BLOCKS) {
-            if (getConfig().getBoolean("anti-block-update.plant-growth.plants." + mat.name(), true))
+            if (c.getBoolean("anti-block-update.plant-growth.plants." + mat.name(), true))
                 plantBlacklist.add(mat);
         }
+
+        cfgFallingBlocks    = c.getBoolean("anti-block-update.falling-blocks", true);
+        cfgEndermanBlock    = c.getBoolean("anti-block-update.entity-block.enderman", true);
+        cfgSheepEatGrass    = c.getBoolean("anti-block-update.entity-block.sheep-eat-grass", true);
+        cfgSilverfishBlock  = c.getBoolean("anti-block-update.entity-block.silverfish", true);
+        cfgWitherBlock      = c.getBoolean("anti-block-update.entity-block.wither", true);
+        cfgZombieBreakDoor  = c.getBoolean("anti-block-update.entity-block.zombie-break-door", false);
+
+        cfgFireBurn       = c.getBoolean("anti-block-update.fire.burn", true);
+        cfgFireSpread     = c.getBoolean("anti-block-update.fire.spread", true);
+        cfgFireExtinguish = c.getBoolean("anti-block-update.fire.extinguish", false);
+        cfgBlockedIgniteCauses = EnumSet.noneOf(BlockIgniteEvent.IgniteCause.class);
+        if (c.getBoolean("anti-block-update.fire.ignition.enabled", true)) {
+            for (BlockIgniteEvent.IgniteCause cause : BlockIgniteEvent.IgniteCause.values()) {
+                if (c.getBoolean("anti-block-update.fire.ignition.causes." + cause.name(), false))
+                    cfgBlockedIgniteCauses.add(cause);
+            }
+        }
+
+        cfgSpreadGrass    = c.getBoolean("anti-block-update.spread.grass", true);
+        cfgSpreadMycelium = c.getBoolean("anti-block-update.spread.mycelium", true);
+        cfgSpreadMushroom = c.getBoolean("anti-block-update.spread.mushroom", true);
+        cfgSpreadVine     = c.getBoolean("anti-block-update.spread.vine", true);
+
+        cfgIceMelt   = c.getBoolean("anti-block-update.ice.melt", true);
+        cfgIceForm   = c.getBoolean("anti-block-update.ice.form", false);
+        cfgSnowMelt  = c.getBoolean("anti-block-update.snow.melt", true);
+        cfgSnowForm  = c.getBoolean("anti-block-update.snow.form", false);
+        cfgFarmlandDry = c.getBoolean("anti-block-update.farmland-dry", false);
+
+        cfgObsidianForm    = c.getBoolean("anti-block-update.block-form.obsidian", false);
+        cfgCobblestoneForm = c.getBoolean("anti-block-update.block-form.cobblestone", false);
+
+        cfgWaterFlow         = c.getBoolean("anti-block-update.liquid-flow.water", false);
+        cfgLavaFlow          = c.getBoolean("anti-block-update.liquid-flow.lava", false);
+        cfgDragonEggTeleport = c.getBoolean("anti-block-update.dragon-egg-teleport", true);
+        cfgLeavesDecay       = c.getBoolean("anti-block-update.leaves-decay", true);
+
+        cfgGiantMushroomGrow = c.getBoolean("anti-block-update.structure-grow.giant-mushroom", false);
+        cfgTreeGrow          = c.getBoolean("anti-block-update.structure-grow.tree", false);
+
+        cfgTntExplosion       = c.getBoolean("anti-block-update.explosions.tnt", false);
+        cfgCreeperExplosion   = c.getBoolean("anti-block-update.explosions.creeper", false);
+        cfgWitherExplosion    = c.getBoolean("anti-block-update.explosions.wither", false);
+        cfgFireballExplosion  = c.getBoolean("anti-block-update.explosions.fireball", false);
+        cfgWitherSkullExplosion = c.getBoolean("anti-block-update.explosions.wither-skull", false);
+
+        cfgPistonExtend    = c.getBoolean("anti-block-update.pistons.extend", false);
+        cfgPistonRetract   = c.getBoolean("anti-block-update.pistons.retract", false);
+        cfgRedstoneChange  = c.getBoolean("anti-block-update.redstone-change", false);
+        cfgDispenserDispense = c.getBoolean("anti-block-update.dispenser-dispense", false);
+
+        cfgBlockBreak  = c.getBoolean("anti-block-update.block-break", false);
+        cfgBlockPlace  = c.getBoolean("anti-block-update.block-place", false);
+        cfgBlockDamage = c.getBoolean("anti-block-update.block-damage", false);
+
+        cfgBucketFill  = c.getBoolean("anti-block-update.buckets.fill", false);
+        cfgBucketEmpty = c.getBoolean("anti-block-update.buckets.empty", false);
+
+        cfgNaturalMonsters = c.getBoolean("anti-block-update.mob-spawn.natural-monsters", false);
+        cfgNaturalMobs     = c.getBoolean("anti-block-update.mob-spawn.natural-mobs", false);
+
+        cfgBlockPvp           = c.getBoolean("anti-block-update.combat.block-pvp", false);
+        cfgBlockHitMonsters   = c.getBoolean("anti-block-update.combat.block-hit-monsters", false);
+        cfgBlockHitMobs       = c.getBoolean("anti-block-update.combat.block-hit-mobs", false);
+        cfgBlockMonsterDamage = c.getBoolean("anti-block-update.combat.block-monster-damage", false);
+        cfgBlockFallDamage    = c.getBoolean("anti-block-update.combat.block-fall-damage", false);
+        cfgBlockVoidDamage    = c.getBoolean("anti-block-update.combat.block-void-damage", false);
+
+        cfgItemDrop       = c.getBoolean("anti-block-update.item-drop", false);
+        cfgItemPickup     = c.getBoolean("anti-block-update.item-pickup", false);
+        cfgHungerDepletion = c.getBoolean("anti-block-update.hunger-depletion", false);
+        cfgWeatherChange   = c.getBoolean("anti-block-update.weather-change", false);
+
+        cfgInteractBed            = c.getBoolean("anti-block-update.interact.bed", true);
+        cfgInteractDoors          = c.getBoolean("anti-block-update.interact.doors", false);
+        cfgInteractButtons        = c.getBoolean("anti-block-update.interact.buttons", false);
+        cfgInteractLever          = c.getBoolean("anti-block-update.interact.lever", false);
+        cfgInteractPressurePlates = c.getBoolean("anti-block-update.interact.pressure-plates", false);
+        cfgInteractNoteBlock      = c.getBoolean("anti-block-update.interact.note-block", false);
+        cfgInteractJukebox        = c.getBoolean("anti-block-update.interact.jukebox", false);
+        cfgInteractChests         = c.getBoolean("anti-block-update.interact.chests", false);
+        cfgInteractFurnace        = c.getBoolean("anti-block-update.interact.furnace", false);
+        cfgInteractCraftingTable  = c.getBoolean("anti-block-update.interact.crafting-table", false);
+        cfgInteractEnchantingTable = c.getBoolean("anti-block-update.interact.enchanting-table", false);
+        cfgInteractAnvil          = c.getBoolean("anti-block-update.interact.anvil", false);
+        cfgInteractBrewingStand   = c.getBoolean("anti-block-update.interact.brewing-stand", false);
+        cfgInteractBeacon         = c.getBoolean("anti-block-update.interact.beacon", false);
+        cfgInteractDispenser      = c.getBoolean("anti-block-update.interact.dispenser", false);
+        cfgInteractHopper         = c.getBoolean("anti-block-update.interact.hopper", false);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -93,8 +260,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPhysics(BlockPhysicsEvent event) {
-        if (getConfig().getBoolean("anti-block-update.physics.enabled", true)
-                && physicsBlacklist.contains(event.getBlock().getType()))
+        if (cfgPhysicsEnabled && physicsBlacklist.contains(event.getBlock().getType()))
             event.setCancelled(true);
     }
 
@@ -106,28 +272,22 @@ public class Main extends JavaPlugin implements Listener {
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
         switch (event.getEntityType()) {
             case FALLING_BLOCK:
-                if (getConfig().getBoolean("anti-block-update.falling-blocks", true))
-                    event.setCancelled(true);
+                if (cfgFallingBlocks) event.setCancelled(true);
                 break;
             case ENDERMAN:
-                if (getConfig().getBoolean("anti-block-update.entity-block.enderman", true))
-                    event.setCancelled(true);
+                if (cfgEndermanBlock) event.setCancelled(true);
                 break;
             case SHEEP:
-                if (getConfig().getBoolean("anti-block-update.entity-block.sheep-eat-grass", true))
-                    event.setCancelled(true);
+                if (cfgSheepEatGrass) event.setCancelled(true);
                 break;
             case SILVERFISH:
-                if (getConfig().getBoolean("anti-block-update.entity-block.silverfish", true))
-                    event.setCancelled(true);
+                if (cfgSilverfishBlock) event.setCancelled(true);
                 break;
             case WITHER:
-                if (getConfig().getBoolean("anti-block-update.entity-block.wither", true))
-                    event.setCancelled(true);
+                if (cfgWitherBlock) event.setCancelled(true);
                 break;
             case ZOMBIE:
-                if (getConfig().getBoolean("anti-block-update.entity-block.zombie-break-door", false))
-                    event.setCancelled(true);
+                if (cfgZombieBreakDoor) event.setCancelled(true);
                 break;
             default:
                 break;
@@ -140,14 +300,12 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBurn(BlockBurnEvent event) {
-        if (getConfig().getBoolean("anti-block-update.fire.burn", true))
-            event.setCancelled(true);
+        if (cfgFireBurn) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockIgnite(BlockIgniteEvent event) {
-        if (!getConfig().getBoolean("anti-block-update.fire.ignition.enabled", true)) return;
-        if (getConfig().getBoolean("anti-block-update.fire.ignition.causes." + event.getCause().name(), false))
+        if (cfgBlockedIgniteCauses.contains(event.getCause()))
             event.setCancelled(true);
     }
 
@@ -157,28 +315,22 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockSpread(BlockSpreadEvent event) {
-        Material newType = event.getNewState().getType();
-        switch (newType) {
+        switch (event.getNewState().getType()) {
             case FIRE:
-                if (getConfig().getBoolean("anti-block-update.fire.spread", true))
-                    event.setCancelled(true);
+                if (cfgFireSpread) event.setCancelled(true);
                 break;
             case GRASS:
-                if (getConfig().getBoolean("anti-block-update.spread.grass", true))
-                    event.setCancelled(true);
+                if (cfgSpreadGrass) event.setCancelled(true);
                 break;
             case MYCEL:
-                if (getConfig().getBoolean("anti-block-update.spread.mycelium", true))
-                    event.setCancelled(true);
+                if (cfgSpreadMycelium) event.setCancelled(true);
                 break;
             case BROWN_MUSHROOM:
             case RED_MUSHROOM:
-                if (getConfig().getBoolean("anti-block-update.spread.mushroom", true))
-                    event.setCancelled(true);
+                if (cfgSpreadMushroom) event.setCancelled(true);
                 break;
             case VINE:
-                if (getConfig().getBoolean("anti-block-update.spread.vine", true))
-                    event.setCancelled(true);
+                if (cfgSpreadVine) event.setCancelled(true);
                 break;
             default:
                 break;
@@ -193,20 +345,16 @@ public class Main extends JavaPlugin implements Listener {
     public void onBlockFade(BlockFadeEvent event) {
         switch (event.getBlock().getType()) {
             case ICE:
-                if (getConfig().getBoolean("anti-block-update.ice.melt", true))
-                    event.setCancelled(true);
+                if (cfgIceMelt) event.setCancelled(true);
                 break;
             case SNOW:
-                if (getConfig().getBoolean("anti-block-update.snow.melt", true))
-                    event.setCancelled(true);
+                if (cfgSnowMelt) event.setCancelled(true);
                 break;
             case FIRE:
-                if (getConfig().getBoolean("anti-block-update.fire.extinguish", false))
-                    event.setCancelled(true);
+                if (cfgFireExtinguish) event.setCancelled(true);
                 break;
             case SOIL:
-                if (getConfig().getBoolean("anti-block-update.farmland-dry", false))
-                    event.setCancelled(true);
+                if (cfgFarmlandDry) event.setCancelled(true);
                 break;
             default:
                 break;
@@ -221,20 +369,16 @@ public class Main extends JavaPlugin implements Listener {
     public void onBlockForm(BlockFormEvent event) {
         switch (event.getNewState().getType()) {
             case SNOW:
-                if (getConfig().getBoolean("anti-block-update.snow.form", false))
-                    event.setCancelled(true);
+                if (cfgSnowForm) event.setCancelled(true);
                 break;
             case ICE:
-                if (getConfig().getBoolean("anti-block-update.ice.form", false))
-                    event.setCancelled(true);
+                if (cfgIceForm) event.setCancelled(true);
                 break;
             case OBSIDIAN:
-                if (getConfig().getBoolean("anti-block-update.block-form.obsidian", false))
-                    event.setCancelled(true);
+                if (cfgObsidianForm) event.setCancelled(true);
                 break;
             case COBBLESTONE:
-                if (getConfig().getBoolean("anti-block-update.block-form.cobblestone", false))
-                    event.setCancelled(true);
+                if (cfgCobblestoneForm) event.setCancelled(true);
                 break;
             default:
                 break;
@@ -247,8 +391,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockGrow(BlockGrowEvent event) {
-        if (getConfig().getBoolean("anti-block-update.plant-growth.enabled", true)
-                && plantBlacklist.contains(event.getBlock().getType()))
+        if (cfgPlantGrowthEnabled && plantBlacklist.contains(event.getBlock().getType()))
             event.setCancelled(true);
     }
 
@@ -259,14 +402,11 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFromTo(BlockFromToEvent event) {
         Material type = event.getBlock().getType();
-        if ((type == Material.WATER || type == Material.STATIONARY_WATER)
-                && getConfig().getBoolean("anti-block-update.liquid-flow.water", false)) {
+        if ((type == Material.WATER || type == Material.STATIONARY_WATER) && cfgWaterFlow) {
             event.setCancelled(true);
-        } else if ((type == Material.LAVA || type == Material.STATIONARY_LAVA)
-                && getConfig().getBoolean("anti-block-update.liquid-flow.lava", false)) {
+        } else if ((type == Material.LAVA || type == Material.STATIONARY_LAVA) && cfgLavaFlow) {
             event.setCancelled(true);
-        } else if (type == Material.DRAGON_EGG
-                && getConfig().getBoolean("anti-block-update.dragon-egg-teleport", true)) {
+        } else if (type == Material.DRAGON_EGG && cfgDragonEggTeleport) {
             event.setCancelled(true);
         }
     }
@@ -277,8 +417,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onLeavesDecay(LeavesDecayEvent event) {
-        if (getConfig().getBoolean("anti-block-update.leaves-decay", true))
-            event.setCancelled(true);
+        if (cfgLeavesDecay) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -289,11 +428,9 @@ public class Main extends JavaPlugin implements Listener {
     public void onStructureGrow(StructureGrowEvent event) {
         TreeType species = event.getSpecies();
         if (species == TreeType.RED_MUSHROOM || species == TreeType.BROWN_MUSHROOM) {
-            if (getConfig().getBoolean("anti-block-update.structure-grow.giant-mushroom", false))
-                event.setCancelled(true);
+            if (cfgGiantMushroomGrow) event.setCancelled(true);
         } else {
-            if (getConfig().getBoolean("anti-block-update.structure-grow.tree", false))
-                event.setCancelled(true);
+            if (cfgTreeGrow) event.setCancelled(true);
         }
     }
 
@@ -305,25 +442,20 @@ public class Main extends JavaPlugin implements Listener {
     public void onEntityExplode(EntityExplodeEvent event) {
         switch (event.getEntityType()) {
             case PRIMED_TNT:
-                if (getConfig().getBoolean("anti-block-update.explosions.tnt", false))
-                    event.blockList().clear();
+                if (cfgTntExplosion) event.blockList().clear();
                 break;
             case CREEPER:
-                if (getConfig().getBoolean("anti-block-update.explosions.creeper", false))
-                    event.blockList().clear();
+                if (cfgCreeperExplosion) event.blockList().clear();
                 break;
             case WITHER:
-                if (getConfig().getBoolean("anti-block-update.explosions.wither", false))
-                    event.blockList().clear();
+                if (cfgWitherExplosion) event.blockList().clear();
                 break;
             case FIREBALL:
             case SMALL_FIREBALL:
-                if (getConfig().getBoolean("anti-block-update.explosions.fireball", false))
-                    event.blockList().clear();
+                if (cfgFireballExplosion) event.blockList().clear();
                 break;
             case WITHER_SKULL:
-                if (getConfig().getBoolean("anti-block-update.explosions.wither-skull", false))
-                    event.blockList().clear();
+                if (cfgWitherSkullExplosion) event.blockList().clear();
                 break;
             default:
                 break;
@@ -336,14 +468,12 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent event) {
-        if (getConfig().getBoolean("anti-block-update.pistons.extend", false))
-            event.setCancelled(true);
+        if (cfgPistonExtend) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonRetract(BlockPistonRetractEvent event) {
-        if (getConfig().getBoolean("anti-block-update.pistons.retract", false))
-            event.setCancelled(true);
+        if (cfgPistonRetract) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -352,8 +482,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockRedstone(BlockRedstoneEvent event) {
-        if (getConfig().getBoolean("anti-block-update.redstone-change", false))
-            event.setNewCurrent(event.getOldCurrent());
+        if (cfgRedstoneChange) event.setNewCurrent(event.getOldCurrent());
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -362,8 +491,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockDispense(BlockDispenseEvent event) {
-        if (getConfig().getBoolean("anti-block-update.dispenser-dispense", false))
-            event.setCancelled(true);
+        if (cfgDispenserDispense) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -372,20 +500,17 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (getConfig().getBoolean("anti-block-update.block-break", false))
-            event.setCancelled(true);
+        if (cfgBlockBreak) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (getConfig().getBoolean("anti-block-update.block-place", false))
-            event.setCancelled(true);
+        if (cfgBlockPlace) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
-        if (getConfig().getBoolean("anti-block-update.block-damage", false))
-            event.setCancelled(true);
+        if (cfgBlockDamage) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -394,14 +519,12 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucketFill(PlayerBucketFillEvent event) {
-        if (getConfig().getBoolean("anti-block-update.buckets.fill", false))
-            event.setCancelled(true);
+        if (cfgBucketFill) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBucketEmpty(PlayerBucketEmptyEvent event) {
-        if (getConfig().getBoolean("anti-block-update.buckets.empty", false))
-            event.setCancelled(true);
+        if (cfgBucketEmpty) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -412,11 +535,9 @@ public class Main extends JavaPlugin implements Listener {
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.NATURAL) return;
         if (event.getEntity() instanceof Monster) {
-            if (getConfig().getBoolean("anti-block-update.mob-spawn.natural-monsters", false))
-                event.setCancelled(true);
+            if (cfgNaturalMonsters) event.setCancelled(true);
         } else {
-            if (getConfig().getBoolean("anti-block-update.mob-spawn.natural-mobs", false))
-                event.setCancelled(true);
+            if (cfgNaturalMobs) event.setCancelled(true);
         }
     }
 
@@ -428,18 +549,14 @@ public class Main extends JavaPlugin implements Listener {
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (event.getDamager() instanceof Player) {
             if (event.getEntity() instanceof Player) {
-                if (getConfig().getBoolean("anti-block-update.combat.block-pvp", false))
-                    event.setCancelled(true);
+                if (cfgBlockPvp) event.setCancelled(true);
             } else if (event.getEntity() instanceof Monster) {
-                if (getConfig().getBoolean("anti-block-update.combat.block-hit-monsters", false))
-                    event.setCancelled(true);
+                if (cfgBlockHitMonsters) event.setCancelled(true);
             } else {
-                if (getConfig().getBoolean("anti-block-update.combat.block-hit-mobs", false))
-                    event.setCancelled(true);
+                if (cfgBlockHitMobs) event.setCancelled(true);
             }
         } else if (event.getEntity() instanceof Player && event.getDamager() instanceof Monster) {
-            if (getConfig().getBoolean("anti-block-update.combat.block-monster-damage", false))
-                event.setCancelled(true);
+            if (cfgBlockMonsterDamage) event.setCancelled(true);
         }
     }
 
@@ -447,11 +564,9 @@ public class Main extends JavaPlugin implements Listener {
     public void onEntityDamage(EntityDamageEvent event) {
         if (event instanceof EntityDamageByEntityEvent) return;
         if (!(event.getEntity() instanceof Player)) return;
-        if (event.getCause() == EntityDamageEvent.DamageCause.FALL
-                && getConfig().getBoolean("anti-block-update.combat.block-fall-damage", false))
+        if (event.getCause() == EntityDamageEvent.DamageCause.FALL && cfgBlockFallDamage)
             event.setCancelled(true);
-        else if (event.getCause() == EntityDamageEvent.DamageCause.VOID
-                && getConfig().getBoolean("anti-block-update.combat.block-void-damage", false))
+        else if (event.getCause() == EntityDamageEvent.DamageCause.VOID && cfgBlockVoidDamage)
             event.setCancelled(true);
     }
 
@@ -461,14 +576,12 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerDropItem(PlayerDropItemEvent event) {
-        if (getConfig().getBoolean("anti-block-update.item-drop", false))
-            event.setCancelled(true);
+        if (cfgItemDrop) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerPickupItem(PlayerPickupItemEvent event) {
-        if (getConfig().getBoolean("anti-block-update.item-pickup", false))
-            event.setCancelled(true);
+        if (cfgItemPickup) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -479,8 +592,7 @@ public class Main extends JavaPlugin implements Listener {
     public void onFoodLevelChange(FoodLevelChangeEvent event) {
         if (!(event.getEntity() instanceof Player)) return;
         Player player = (Player) event.getEntity();
-        if (event.getFoodLevel() < player.getFoodLevel()
-                && getConfig().getBoolean("anti-block-update.hunger-depletion", false))
+        if (cfgHungerDepletion && event.getFoodLevel() < player.getFoodLevel())
             event.setCancelled(true);
     }
 
@@ -490,8 +602,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onWeatherChange(WeatherChangeEvent event) {
-        if (getConfig().getBoolean("anti-block-update.weather-change", false))
-            event.setCancelled(true);
+        if (cfgWeatherChange) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -500,58 +611,54 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+        if (event.getClickedBlock() == null) return;
+        Action action = event.getAction();
         Material type = event.getClickedBlock().getType();
 
+        // Walking on pressure plates fires PHYSICAL, not RIGHT_CLICK_BLOCK
+        if (action == Action.PHYSICAL) {
+            if (cfgInteractPressurePlates
+                    && (type == Material.STONE_PLATE || type == Material.WOOD_PLATE
+                    || type == Material.IRON_PLATE || type == Material.GOLD_PLATE))
+                event.setCancelled(true);
+            return;
+        }
+
+        if (action != Action.RIGHT_CLICK_BLOCK) return;
+
         if (type == Material.BED_BLOCK) {
-            if (getConfig().getBoolean("anti-block-update.interact.bed", true))
-                event.setCancelled(true);
+            if (cfgInteractBed) event.setCancelled(true);
         } else if (type == Material.WOODEN_DOOR || type == Material.TRAP_DOOR || type == Material.FENCE_GATE) {
-            if (getConfig().getBoolean("anti-block-update.interact.doors", false))
-                event.setCancelled(true);
+            if (cfgInteractDoors) event.setCancelled(true);
         } else if (type == Material.STONE_BUTTON || type == Material.WOOD_BUTTON) {
-            if (getConfig().getBoolean("anti-block-update.interact.buttons", false))
-                event.setCancelled(true);
+            if (cfgInteractButtons) event.setCancelled(true);
         } else if (type == Material.LEVER) {
-            if (getConfig().getBoolean("anti-block-update.interact.lever", false))
-                event.setCancelled(true);
+            if (cfgInteractLever) event.setCancelled(true);
         } else if (type == Material.STONE_PLATE || type == Material.WOOD_PLATE
                 || type == Material.IRON_PLATE || type == Material.GOLD_PLATE) {
-            if (getConfig().getBoolean("anti-block-update.interact.pressure-plates", false))
-                event.setCancelled(true);
+            if (cfgInteractPressurePlates) event.setCancelled(true);
         } else if (type == Material.NOTE_BLOCK) {
-            if (getConfig().getBoolean("anti-block-update.interact.note-block", false))
-                event.setCancelled(true);
+            if (cfgInteractNoteBlock) event.setCancelled(true);
         } else if (type == Material.JUKEBOX) {
-            if (getConfig().getBoolean("anti-block-update.interact.jukebox", false))
-                event.setCancelled(true);
+            if (cfgInteractJukebox) event.setCancelled(true);
         } else if (type == Material.CHEST || type == Material.TRAPPED_CHEST || type == Material.ENDER_CHEST) {
-            if (getConfig().getBoolean("anti-block-update.interact.chests", false))
-                event.setCancelled(true);
+            if (cfgInteractChests) event.setCancelled(true);
         } else if (type == Material.FURNACE || type == Material.BURNING_FURNACE) {
-            if (getConfig().getBoolean("anti-block-update.interact.furnace", false))
-                event.setCancelled(true);
+            if (cfgInteractFurnace) event.setCancelled(true);
         } else if (type == Material.WORKBENCH) {
-            if (getConfig().getBoolean("anti-block-update.interact.crafting-table", false))
-                event.setCancelled(true);
+            if (cfgInteractCraftingTable) event.setCancelled(true);
         } else if (type == Material.ENCHANTMENT_TABLE) {
-            if (getConfig().getBoolean("anti-block-update.interact.enchanting-table", false))
-                event.setCancelled(true);
+            if (cfgInteractEnchantingTable) event.setCancelled(true);
         } else if (type == Material.ANVIL) {
-            if (getConfig().getBoolean("anti-block-update.interact.anvil", false))
-                event.setCancelled(true);
+            if (cfgInteractAnvil) event.setCancelled(true);
         } else if (type == Material.BREWING_STAND) {
-            if (getConfig().getBoolean("anti-block-update.interact.brewing-stand", false))
-                event.setCancelled(true);
+            if (cfgInteractBrewingStand) event.setCancelled(true);
         } else if (type == Material.BEACON) {
-            if (getConfig().getBoolean("anti-block-update.interact.beacon", false))
-                event.setCancelled(true);
+            if (cfgInteractBeacon) event.setCancelled(true);
         } else if (type == Material.DISPENSER || type == Material.DROPPER) {
-            if (getConfig().getBoolean("anti-block-update.interact.dispenser", false))
-                event.setCancelled(true);
+            if (cfgInteractDispenser) event.setCancelled(true);
         } else if (type == Material.HOPPER) {
-            if (getConfig().getBoolean("anti-block-update.interact.hopper", false))
-                event.setCancelled(true);
+            if (cfgInteractHopper) event.setCancelled(true);
         }
     }
 }

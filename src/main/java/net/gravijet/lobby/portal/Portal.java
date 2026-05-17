@@ -76,8 +76,12 @@ public class Portal {
         data.put("type", type.name());
         data.put("value", value);
         data.put("world", worldName);
-        data.put("min", min);
-        data.put("max", max);
+        data.put("min_x", min.getX());
+        data.put("min_y", min.getY());
+        data.put("min_z", min.getZ());
+        data.put("max_x", max.getX());
+        data.put("max_y", max.getY());
+        data.put("max_z", max.getZ());
         return data;
     }
 
@@ -86,9 +90,14 @@ public class Portal {
         PortalType type = PortalType.valueOf((String) data.get("type"));
         String value = (String) data.get("value");
         String world = (String) data.get("world");
-        Vector min = (Vector) data.get("min");
-        Vector max = (Vector) data.get("max");
-        return new Portal(name, type, value, world, min, max);
+        double minX = ((Number) data.get("min_x")).doubleValue();
+        double minY = ((Number) data.get("min_y")).doubleValue();
+        double minZ = ((Number) data.get("min_z")).doubleValue();
+        double maxX = ((Number) data.get("max_x")).doubleValue();
+        double maxY = ((Number) data.get("max_y")).doubleValue();
+        double maxZ = ((Number) data.get("max_z")).doubleValue();
+        return new Portal(name, type, value, world,
+                new Vector(minX, minY, minZ), new Vector(maxX, maxY, maxZ));
     }
 
     @Override

@@ -21,17 +21,19 @@ public class PortalManager {
     private YamlConfiguration portalsConfig;
 
     private static class Selection {
-        private final String worldName;
+        private final String world1;
+        private final String world2;
         private final Vector point1;
         private final Vector point2;
 
-        private Selection(String worldName, Vector point1, Vector point2) {
-            this.worldName = worldName;
+        private Selection(String world1, String world2, Vector point1, Vector point2) {
+            this.world1 = world1;
+            this.world2 = world2;
             this.point1 = point1;
             this.point2 = point2;
         }
 
-        public String getWorldName() { return worldName; }
+        public String getWorldName() { return world1; }
         public Vector getPoint1() { return point1; }
         public Vector getPoint2() { return point2; }
 
@@ -39,12 +41,18 @@ public class PortalManager {
             return point1 != null && point2 != null;
         }
 
+        public boolean isSameWorld() {
+            return world1 != null && world1.equals(world2);
+        }
+
         public static Selection withPoint(Selection existing, String worldName, Vector point, int index) {
+            String w1 = existing != null ? existing.world1 : null;
+            String w2 = existing != null ? existing.world2 : null;
             Vector p1 = existing != null ? existing.point1 : null;
             Vector p2 = existing != null ? existing.point2 : null;
-            if (index == 1) p1 = point;
-            else p2 = point;
-            return new Selection(worldName, p1, p2);
+            if (index == 1) { p1 = point; w1 = worldName; }
+            else { p2 = point; w2 = worldName; }
+            return new Selection(w1, w2, p1, p2);
         }
     }
 
@@ -153,6 +161,7 @@ public class PortalManager {
     public boolean createPortalFromSelection(Player player, String name, PortalType type, String value) {
         if (!hasCompleteSelection(player)) return false;
         Selection sel = selections.get(player.getUniqueId());
+        if (!sel.isSameWorld()) return false;
         portals.put(name, new Portal(name, type, value, sel.getWorldName(), sel.getPoint1(), sel.getPoint2()));
         savePortals();
         clearSelection(player);
