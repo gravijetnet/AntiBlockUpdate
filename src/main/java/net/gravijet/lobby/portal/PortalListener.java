@@ -19,8 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class PortalListener implements Listener {
 
+    private static final String PERM_USE = "antiblockupdate.portal.use";
+
     private final Plugin plugin;
     private final PortalManager portalManager;
+    // Tracks which portal name each player is currently standing in to avoid re-firing.
     private final Map<UUID, String> playerInPortal = new ConcurrentHashMap<>();
 
     public PortalListener(Plugin plugin, PortalManager portalManager) {
@@ -28,12 +31,14 @@ public class PortalListener implements Listener {
         this.portalManager = portalManager;
     }
 
-    @EventHandler(priority = EventPriority.NORMAL)
+    // Fix #26: ignoreCancelled = true so cancelled move events (e.g. from other plugins)
+    // don't trigger portal logic; also avoids the per-packet overhead on cancelled events.
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
         Location from = event.getFrom();
         Location to = event.getTo();
-        // BUG-20 (was BUG-18 in old report): to can be null on some Bukkit versions
         if (to == null) return;
+        // Skip head-only rotation — block coords unchanged means no portal crossing.
         if (from.getBlockX() == to.getBlockX()
                 && from.getBlockY() == to.getBlockY()
                 && from.getBlockZ() == to.getBlockZ()) {
@@ -45,11 +50,14 @@ public class PortalListener implements Listener {
         Portal portal = portalManager.getPortalAt(to);
 
         if (portal != null) {
-            String current = playerInPortal.get(uuid);
-            if (!portal.getName().equals(current)) {
+            // Fix #31: putIfAbsent makes the check-and-set atomic so concurrent firings
+            // for the same player cannot both pass the "not already in this portal" guard.
+            String previous = playerInPortal.putIfAbsent(uuid, portal.getName());
+            if (previous == null || !previous.equals(portal.getName())) {
+                // Ensure the map holds the new portal name even when we're replacing an old entry.
                 playerInPortal.put(uuid, portal.getName());
-                // BUG-18: if execute() fails, remove the entry so the next block-crossing retries
                 boolean success = portal.execute(player, plugin);
+                // Fix #18 (listener side): on failure remove entry so the next crossing retries.
                 if (!success) {
                     playerInPortal.remove(uuid);
                 }
@@ -68,7 +76,7 @@ public class PortalListener implements Listener {
 
     /**
      * Called by PortalManager.reloadPortals() so stale playerInPortal entries are cleared.
-     * BUG-17: without this, a player standing in a reloaded portal would never re-trigger it.
+     * Without this, a player standing in a reloaded portal would never re-trigger it.
      */
     public void clearAllPortalState() {
         playerInPortal.clear();
@@ -77,21 +85,27 @@ public class PortalListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        // BUG-20: getItemInMainHand() added in 1.9; returns AIR (never null) on 1.9+
-        ItemStack item = player.getInventory().getItemInMainHand();
+        ItemStack item = player.getInventory().getItemInHand();
         if (item.getType() != Material.BLAZE_ROD) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
 
+        // Fix #29: require the manage permission to set selection points with the wand.
+        if (!player.hasPermission(PERM_USE)) return;
+
         event.setCancelled(true);
         int point = player.isSneaking() ? 2 : 1;
+
+        // Fix #30: if point 1 has never been set, getSelectionWorld() returns null and
+        // the cross-world guard is skipped — which is correct (no existing world to compare).
+        // For point 2, only enforce world consistency when point 1 is already set.
         if (point == 2) {
             String existingWorld = portalManager.getSelectionWorld(player);
             if (existingWorld != null && !existingWorld.equals(event.getClickedBlock().getWorld().getName())) {
-                // BUG-19: warn and refuse the cross-world point rather than saving it silently
                 player.sendMessage("§cBoth selection points must be in the same world. Point 2 not saved.");
                 return;
             }
         }
+
         portalManager.setSelection(player, event.getClickedBlock().getLocation(), point);
         String pointMsg = (point == 1) ? "§a§lfirst§f" : "§a§lsecond§f";
         player.sendMessage("§c§lGraviJet §7» §fSelection point " + pointMsg + " saved!");

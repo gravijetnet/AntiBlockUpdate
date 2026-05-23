@@ -9,7 +9,7 @@ import org.bukkit.util.Vector;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,28 +40,26 @@ public class Portal {
 
     public boolean contains(Location location) {
         if (location == null || location.getWorld() == null || !location.getWorld().getName().equals(worldName)) return false;
-        int bx = location.getBlockX();
-        int by = location.getBlockY();
-        int bz = location.getBlockZ();
-        return bx >= (int) min.getX() && bx <= (int) max.getX()
-            && by >= (int) min.getY() && by <= (int) max.getY()
-            && bz >= (int) min.getZ() && bz <= (int) max.getZ();
+        // Fix #18: use Math.floor() so negative coordinates truncate toward -infinity,
+        // not toward zero, keeping the boundary correct on all sides.
+        int bx = (int) Math.floor(location.getX());
+        int by = (int) Math.floor(location.getY());
+        int bz = (int) Math.floor(location.getZ());
+        return bx >= (int) Math.floor(min.getX()) && bx <= (int) Math.floor(max.getX())
+            && by >= (int) Math.floor(min.getY()) && by <= (int) Math.floor(max.getY())
+            && bz >= (int) Math.floor(min.getZ()) && bz <= (int) Math.floor(max.getZ());
     }
 
-    /**
-     * Returns false if execution failed (e.g. BungeeCord IOException), true on success.
-     * Callers can use the return value to decide whether to retry.
-     */
     public boolean execute(Player player, Plugin plugin) {
         switch (type) {
             case SERVER:
                 return sendToServer(player, value, plugin);
             case COMMAND:
-                // BUG-11: {player_name} substitution is intentional but documented as unsafe;
-                // server operators must ensure portal command values do not expose {player_name}
-                // to untrusted input. {player} is always the UUID (safe).
+                // Fix #15: sanitise the player name before substituting it into a console
+                // command to prevent injection via special characters on offline/proxy servers.
+                String safeName = player.getName().replaceAll("[^A-Za-z0-9_]", "");
                 String cmd = value.replace("{player}", player.getUniqueId().toString())
-                                  .replace("{player_name}", player.getName());
+                                  .replace("{player_name}", safeName);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
                 return true;
             default:
@@ -77,7 +75,6 @@ public class Portal {
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to build BungeeCord message for player "
                     + player.getName() + ": " + e.getMessage());
-            // BUG-12: inform the player so they are not silently stuck
             player.sendMessage("§cPortal error: could not connect to server. Please try again.");
             return false;
         }
@@ -85,8 +82,9 @@ public class Portal {
         return true;
     }
 
+    // Fix #20: use LinkedHashMap for stable field order in the serialized YAML output.
     public Map<String, Object> serialize() {
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> data = new LinkedHashMap<>();
         data.put("name", name);
         data.put("type", type.name());
         data.put("value", value);
@@ -101,9 +99,9 @@ public class Portal {
     }
 
     public static Portal deserialize(Map<String, Object> data) {
-        String name  = requireString(data, "name");
-        String world = requireString(data, "world");
-        String value = requireString(data, "value");
+        String name    = requireString(data, "name");
+        String world   = requireString(data, "world");
+        String value   = requireString(data, "value");
         String typeStr = requireString(data, "type");
         PortalType type;
         try {
@@ -128,7 +126,6 @@ public class Portal {
         return (String) val;
     }
 
-    // BUG-13: reject non-finite values so a corrupt YAML entry fails loudly at load time
     private static double requireFiniteNumber(Map<String, Object> data, String key) {
         Object val = data.get(key);
         if (!(val instanceof Number))

@@ -20,7 +20,6 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     private static final String PERM_USE    = "antiblockupdate.portal.use";
     private static final String PERM_MANAGE = "antiblockupdate.portal.manage";
 
-    // BUG-15: max length for a portal name
     private static final int MAX_NAME_LENGTH = 32;
 
     private final PortalManager portalManager;
@@ -61,9 +60,9 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdWand(CommandSender sender) {
-        // BUG-14: permission check
-        if (!sender.hasPermission(PERM_USE)) { sender.sendMessage("§cYou do not have permission."); return; }
+        // Fix #23: check player-ness before permission so console gets the right message.
         if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can use this command."); return; }
+        if (!sender.hasPermission(PERM_USE)) { sender.sendMessage("§cYou do not have permission."); return; }
         Player player = (Player) sender;
         player.getInventory().addItem(new ItemStack(Material.BLAZE_ROD, 1));
         player.sendMessage("§c§lGraviJet §7» §fYou received the selection wand.");
@@ -71,9 +70,9 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdCreate(CommandSender sender, String[] args) {
-        // BUG-14: permission check
-        if (!sender.hasPermission(PERM_MANAGE)) { sender.sendMessage("§cYou do not have permission."); return; }
+        // Fix #23: player check before permission check.
         if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can create portals."); return; }
+        if (!sender.hasPermission(PERM_MANAGE)) { sender.sendMessage("§cYou do not have permission."); return; }
         if (args.length < 4) {
             sender.sendMessage("§cUsage: /portal create <name> <type> <value>");
             sender.sendMessage("§7Types: SERVER, COMMAND");
@@ -82,7 +81,6 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         Player player = (Player) sender;
         String name = args[1];
 
-        // BUG-15: validate portal name
         if (!isValidName(name)) {
             sender.sendMessage("§cInvalid portal name. Use only letters, digits, hyphens, underscores (max " + MAX_NAME_LENGTH + " chars).");
             return;
@@ -101,21 +99,17 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§cSelect two points with the wand first.");
             return;
         }
-        // BUG-16: createPortalFromSelection now uses putIfAbsent internally, making the
-        // create atomic. The check here is a fast-path UX guard only.
-        if (portalManager.getPortal(name) != null) {
-            sender.sendMessage("§cA portal with that name already exists.");
-            return;
-        }
+
+        // Fix #21: skip the pre-check and rely solely on createPortalFromSelection's
+        // atomic putIfAbsent so the two-step TOCTOU race is eliminated entirely.
         if (portalManager.createPortalFromSelection(player, name, type, value)) {
             sender.sendMessage("§c§lGraviJet §7» §fPortal '" + name + "' created.");
         } else {
-            sender.sendMessage("§cFailed to create portal. Both selection points must be in the same world, and the name must not already exist.");
+            sender.sendMessage("§cFailed to create portal — name already exists or both points must be in the same world.");
         }
     }
 
     private void cmdDelete(CommandSender sender, String[] args) {
-        // BUG-14: permission check
         if (!sender.hasPermission(PERM_MANAGE)) { sender.sendMessage("§cYou do not have permission."); return; }
         if (args.length < 2) { sender.sendMessage("§cUsage: /portal delete <name>"); return; }
         if (portalManager.deletePortal(args[1])) {
@@ -126,7 +120,6 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdList(CommandSender sender) {
-        // BUG-14: permission check
         if (!sender.hasPermission(PERM_MANAGE)) { sender.sendMessage("§cYou do not have permission."); return; }
         List<Portal> portals = new ArrayList<>(portalManager.getAllPortals());
         if (portals.isEmpty()) { sender.sendMessage("§c§lGraviJet §7» §fNo portals defined."); return; }
@@ -137,7 +130,6 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdInfo(CommandSender sender, String[] args) {
-        // BUG-14: permission check
         if (!sender.hasPermission(PERM_MANAGE)) { sender.sendMessage("§cYou do not have permission."); return; }
         if (args.length < 2) { sender.sendMessage("§cUsage: /portal info <name>"); return; }
         Portal portal = portalManager.getPortal(args[1]);
@@ -151,16 +143,15 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdReload(CommandSender sender) {
-        // BUG-14: permission check
         if (!sender.hasPermission(PERM_MANAGE)) { sender.sendMessage("§cYou do not have permission."); return; }
         portalManager.reloadPortals();
         sender.sendMessage("§c§lGraviJet §7» §fPortals reloaded.");
     }
 
     private void cmdTest(CommandSender sender) {
-        // BUG-14: permission check
-        if (!sender.hasPermission(PERM_USE)) { sender.sendMessage("§cYou do not have permission."); return; }
+        // Fix #23: player check before permission check.
         if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can use this command."); return; }
+        if (!sender.hasPermission(PERM_USE)) { sender.sendMessage("§cYou do not have permission."); return; }
         Player player = (Player) sender;
         Location location = player.getLocation();
         Portal portal = portalManager.getPortalAt(location);
@@ -183,7 +174,6 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
         return String.format("(%d, %d, %d)", (int) v.getX(), (int) v.getY(), (int) v.getZ());
     }
 
-    // BUG-15: alphanumeric + hyphen + underscore, bounded length, no color codes
     private boolean isValidName(String name) {
         return name != null
                 && !name.isEmpty()
@@ -195,14 +185,14 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             String prefix = args[0].toLowerCase();
-            // BUG-16 (tab): use a mutable list so removeIf works correctly
             List<String> subs = new ArrayList<>(Arrays.asList("wand", "create", "delete", "list", "info", "reload", "test"));
             subs.removeIf(s -> !s.startsWith(prefix));
             return subs;
         }
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
-            if (sub.equals("delete") || sub.equals("info")) {
+            // Fix #24: only return portal names to senders with the manage permission.
+            if ((sub.equals("delete") || sub.equals("info")) && sender.hasPermission(PERM_MANAGE)) {
                 return portalManager.getAllPortals().stream()
                         .map(Portal::getName)
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))

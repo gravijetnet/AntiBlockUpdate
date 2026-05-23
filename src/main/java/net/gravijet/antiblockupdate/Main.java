@@ -17,13 +17,14 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
-import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
@@ -109,68 +110,51 @@ public class Main extends JavaPlugin implements Listener {
     private boolean cfgInteractDispenser;
     private boolean cfgInteractHopper;
 
-    // BUG-01/09: Replaced static EnumSet constants (which would crash at class-load on
-    // unknown 1.13+ Material names) with a safe runtime-lookup builder.
     private static Set<Material> safeMaterials(String... names) {
         Set<Material> set = new HashSet<>();
         for (String name : names) {
             try {
-                Material m = Material.valueOf(name);
-                set.add(m);
+                set.add(Material.valueOf(name));
             } catch (IllegalArgumentException ignored) {
-                // Material removed in this server version — skip silently
+                // Material removed/renamed in this server version — skip silently
             }
         }
-        return set;
+        return Collections.unmodifiableSet(set);
     }
 
     private static final Set<Material> ALL_PHYSICS_BLOCKS = safeMaterials(
             "SAND", "GRAVEL", "ANVIL", "DRAGON_EGG",
             "TORCH", "LEVER",
-            // 1.12 names
             "STONE_BUTTON", "WOOD_BUTTON",
-            // 1.13+ names
             "OAK_BUTTON", "SPRUCE_BUTTON", "BIRCH_BUTTON", "JUNGLE_BUTTON",
             "ACACIA_BUTTON", "DARK_OAK_BUTTON",
             "TRIPWIRE_HOOK", "TRIPWIRE",
-            // 1.12 signs
             "SIGN_POST", "WALL_SIGN",
-            // 1.13+ signs
             "OAK_SIGN", "OAK_WALL_SIGN", "SPRUCE_SIGN", "SPRUCE_WALL_SIGN",
             "BIRCH_SIGN", "BIRCH_WALL_SIGN", "JUNGLE_SIGN", "JUNGLE_WALL_SIGN",
             "ACACIA_SIGN", "ACACIA_WALL_SIGN", "DARK_OAK_SIGN", "DARK_OAK_WALL_SIGN",
             "LADDER", "VINE",
-            // flowers 1.12
             "YELLOW_FLOWER", "RED_ROSE",
-            // flowers 1.13+
             "DANDELION", "POPPY", "BLUE_ORCHID", "ALLIUM", "AZURE_BLUET",
             "RED_TULIP", "ORANGE_TULIP", "WHITE_TULIP", "PINK_TULIP", "OXEYE_DAISY",
-            // tall grass 1.12 / 1.13+
             "LONG_GRASS", "SHORT_GRASS", "TALL_GRASS",
             "DEAD_BUSH", "BROWN_MUSHROOM", "RED_MUSHROOM",
             "CACTUS",
-            // sugar cane 1.12 / 1.13+
             "SUGAR_CANE_BLOCK", "SUGAR_CANE",
             "WHEAT",
             "CARROT", "CARROTS",
             "POTATO", "POTATOES",
-            // nether wart 1.12 / 1.13+
             "NETHER_WARTS", "NETHER_WART",
             "COCOA", "PUMPKIN_STEM", "MELON_STEM",
             "PUMPKIN",
-            // melon 1.12 / 1.13+
             "MELON_BLOCK", "MELON",
             "RAILS", "RAIL", "POWERED_RAIL", "DETECTOR_RAIL", "ACTIVATOR_RAIL",
-            // doors 1.12
             "WOODEN_DOOR", "IRON_DOOR_BLOCK", "TRAP_DOOR",
-            // doors 1.13+
             "OAK_DOOR", "SPRUCE_DOOR", "BIRCH_DOOR", "JUNGLE_DOOR",
             "ACACIA_DOOR", "DARK_OAK_DOOR", "IRON_DOOR",
             "OAK_TRAPDOOR", "SPRUCE_TRAPDOOR", "BIRCH_TRAPDOOR",
             "JUNGLE_TRAPDOOR", "ACACIA_TRAPDOOR", "DARK_OAK_TRAPDOOR",
-            // pressure plates 1.12
             "STONE_PLATE", "WOOD_PLATE", "IRON_PLATE", "GOLD_PLATE",
-            // pressure plates 1.13+
             "STONE_PRESSURE_PLATE", "OAK_PRESSURE_PLATE", "SPRUCE_PRESSURE_PLATE",
             "BIRCH_PRESSURE_PLATE", "JUNGLE_PRESSURE_PLATE", "ACACIA_PRESSURE_PLATE",
             "DARK_OAK_PRESSURE_PLATE", "LIGHT_WEIGHTED_PRESSURE_PLATE",
@@ -191,7 +175,6 @@ public class Main extends JavaPlugin implements Listener {
             "SUGAR_CANE_BLOCK", "SUGAR_CANE"
     );
 
-    // Pressure-plate materials resolved at runtime for the interact handler
     private static final Set<Material> PRESSURE_PLATE_MATERIALS = safeMaterials(
             "STONE_PLATE", "WOOD_PLATE", "IRON_PLATE", "GOLD_PLATE",
             "STONE_PRESSURE_PLATE", "OAK_PRESSURE_PLATE", "SPRUCE_PRESSURE_PLATE",
@@ -200,10 +183,11 @@ public class Main extends JavaPlugin implements Listener {
             "HEAVY_WEIGHTED_PRESSURE_PLATE"
     );
 
+    // Fix #12: added IRON_DOOR (1.13+ name) which was missing
     private static final Set<Material> DOOR_MATERIALS = safeMaterials(
-            "WOODEN_DOOR", "TRAP_DOOR",
+            "WOODEN_DOOR", "IRON_DOOR_BLOCK", "TRAP_DOOR",
             "OAK_DOOR", "SPRUCE_DOOR", "BIRCH_DOOR", "JUNGLE_DOOR",
-            "ACACIA_DOOR", "DARK_OAK_DOOR",
+            "ACACIA_DOOR", "DARK_OAK_DOOR", "IRON_DOOR",
             "OAK_TRAPDOOR", "SPRUCE_TRAPDOOR", "BIRCH_TRAPDOOR",
             "JUNGLE_TRAPDOOR", "ACACIA_TRAPDOOR", "DARK_OAK_TRAPDOOR",
             "FENCE_GATE", "OAK_FENCE_GATE", "SPRUCE_FENCE_GATE", "BIRCH_FENCE_GATE",
@@ -229,29 +213,30 @@ public class Main extends JavaPlugin implements Listener {
     );
 
     private static final Set<Material> FURNACE_MATERIALS = safeMaterials(
-            "FURNACE",
-            // 1.12 had a separate BURNING_FURNACE block; removed in 1.13
-            "BURNING_FURNACE",
-            "BLAST_FURNACE", "SMOKER"
+            "FURNACE", "BURNING_FURNACE", "BLAST_FURNACE", "SMOKER"
     );
+
+    // Fix #1: material names used as spread/fade switch cases changed in 1.13.
+    // Resolve them at class-load time so they work on both 1.12 and 1.13+ servers.
+    private static final Set<Material> GRASS_BLOCK_MATERIALS  = safeMaterials("GRASS", "GRASS_BLOCK");
+    private static final Set<Material> MYCELIUM_MATERIALS     = safeMaterials("MYCEL", "MYCELIUM");
+    private static final Set<Material> FARMLAND_MATERIALS     = safeMaterials("SOIL", "FARMLAND");
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        // BUG-08: call reloadConfig() so disk changes are picked up on /reload
         reloadConfig();
         buildSets();
         getServer().getPluginManager().registerEvents(this, this);
 
+        // Fix #4: read portal.enabled after buildSets so config is already loaded
         portalEnabled = getConfig().getBoolean("portal.enabled", true);
         if (portalEnabled) {
             portalManager = new PortalManager(this);
             PortalListener portalListener = new PortalListener(this, portalManager);
-            // BUG-17: register listener with manager so reloadPortals() can clear stale state
             portalManager.setPortalListener(portalListener);
             getServer().getPluginManager().registerEvents(portalListener, this);
             PortalCommand portalCmd = new PortalCommand(portalManager);
-            // BUG-03 (partial): track whether we registered the channel so onDisable can match
             if (getCommand("portal") != null) {
                 getCommand("portal").setExecutor(portalCmd);
                 getCommand("portal").setTabCompleter(portalCmd);
@@ -264,7 +249,6 @@ public class Main extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        // BUG-03: only unregister the BungeeCord channel if we registered it
         if (portalEnabled) {
             getServer().getMessenger().unregisterOutgoingPluginChannel(this, "BungeeCord");
         }
@@ -276,7 +260,6 @@ public class Main extends JavaPlugin implements Listener {
 
         cfgPhysicsEnabled = c.getBoolean("anti-block-update.physics.enabled", true);
         physicsBlacklist = new HashSet<>();
-        // BUG-01/02: use safeMaterials names; mat.name() returns the 1.13+ name on 1.13+ servers
         for (Material mat : ALL_PHYSICS_BLOCKS) {
             if (c.getBoolean("anti-block-update.physics.blocks." + mat.name(), true))
                 physicsBlacklist.add(mat);
@@ -299,7 +282,6 @@ public class Main extends JavaPlugin implements Listener {
         cfgFireBurn       = c.getBoolean("anti-block-update.fire.burn", true);
         cfgFireSpread     = c.getBoolean("anti-block-update.fire.spread", true);
         cfgFireExtinguish = c.getBoolean("anti-block-update.fire.extinguish", false);
-        // BUG-04: track enabled flag so onBlockIgnite can skip early
         cfgIgnitionEnabled = c.getBoolean("anti-block-update.fire.ignition.enabled", true);
         cfgBlockedIgniteCauses = EnumSet.noneOf(BlockIgniteEvent.IgniteCause.class);
         if (cfgIgnitionEnabled) {
@@ -331,10 +313,10 @@ public class Main extends JavaPlugin implements Listener {
         cfgGiantMushroomGrow = c.getBoolean("anti-block-update.structure-grow.giant-mushroom", false);
         cfgTreeGrow          = c.getBoolean("anti-block-update.structure-grow.tree", false);
 
-        cfgTntExplosion       = c.getBoolean("anti-block-update.explosions.tnt", false);
-        cfgCreeperExplosion   = c.getBoolean("anti-block-update.explosions.creeper", false);
-        cfgWitherExplosion    = c.getBoolean("anti-block-update.explosions.wither", false);
-        cfgFireballExplosion  = c.getBoolean("anti-block-update.explosions.fireball", false);
+        cfgTntExplosion         = c.getBoolean("anti-block-update.explosions.tnt", false);
+        cfgCreeperExplosion     = c.getBoolean("anti-block-update.explosions.creeper", false);
+        cfgWitherExplosion      = c.getBoolean("anti-block-update.explosions.wither", false);
+        cfgFireballExplosion    = c.getBoolean("anti-block-update.explosions.fireball", false);
         cfgWitherSkullExplosion = c.getBoolean("anti-block-update.explosions.wither-skull", false);
 
         cfgPistonExtend    = c.getBoolean("anti-block-update.pistons.extend", false);
@@ -359,27 +341,27 @@ public class Main extends JavaPlugin implements Listener {
         cfgBlockFallDamage    = c.getBoolean("anti-block-update.combat.block-fall-damage", false);
         cfgBlockVoidDamage    = c.getBoolean("anti-block-update.combat.block-void-damage", false);
 
-        cfgItemDrop       = c.getBoolean("anti-block-update.item-drop", false);
-        cfgItemPickup     = c.getBoolean("anti-block-update.item-pickup", false);
+        cfgItemDrop        = c.getBoolean("anti-block-update.item-drop", false);
+        cfgItemPickup      = c.getBoolean("anti-block-update.item-pickup", false);
         cfgHungerDepletion = c.getBoolean("anti-block-update.hunger-depletion", false);
         cfgWeatherChange   = c.getBoolean("anti-block-update.weather-change", false);
 
-        cfgInteractBed            = c.getBoolean("anti-block-update.interact.bed", true);
-        cfgInteractDoors          = c.getBoolean("anti-block-update.interact.doors", false);
-        cfgInteractButtons        = c.getBoolean("anti-block-update.interact.buttons", false);
-        cfgInteractLever          = c.getBoolean("anti-block-update.interact.lever", false);
-        cfgInteractPressurePlates = c.getBoolean("anti-block-update.interact.pressure-plates", false);
-        cfgInteractNoteBlock      = c.getBoolean("anti-block-update.interact.note-block", false);
-        cfgInteractJukebox        = c.getBoolean("anti-block-update.interact.jukebox", false);
-        cfgInteractChests         = c.getBoolean("anti-block-update.interact.chests", false);
-        cfgInteractFurnace        = c.getBoolean("anti-block-update.interact.furnace", false);
-        cfgInteractCraftingTable  = c.getBoolean("anti-block-update.interact.crafting-table", false);
+        cfgInteractBed             = c.getBoolean("anti-block-update.interact.bed", true);
+        cfgInteractDoors           = c.getBoolean("anti-block-update.interact.doors", false);
+        cfgInteractButtons         = c.getBoolean("anti-block-update.interact.buttons", false);
+        cfgInteractLever           = c.getBoolean("anti-block-update.interact.lever", false);
+        cfgInteractPressurePlates  = c.getBoolean("anti-block-update.interact.pressure-plates", false);
+        cfgInteractNoteBlock       = c.getBoolean("anti-block-update.interact.note-block", false);
+        cfgInteractJukebox         = c.getBoolean("anti-block-update.interact.jukebox", false);
+        cfgInteractChests          = c.getBoolean("anti-block-update.interact.chests", false);
+        cfgInteractFurnace         = c.getBoolean("anti-block-update.interact.furnace", false);
+        cfgInteractCraftingTable   = c.getBoolean("anti-block-update.interact.crafting-table", false);
         cfgInteractEnchantingTable = c.getBoolean("anti-block-update.interact.enchanting-table", false);
-        cfgInteractAnvil          = c.getBoolean("anti-block-update.interact.anvil", false);
-        cfgInteractBrewingStand   = c.getBoolean("anti-block-update.interact.brewing-stand", false);
-        cfgInteractBeacon         = c.getBoolean("anti-block-update.interact.beacon", false);
-        cfgInteractDispenser      = c.getBoolean("anti-block-update.interact.dispenser", false);
-        cfgInteractHopper         = c.getBoolean("anti-block-update.interact.hopper", false);
+        cfgInteractAnvil           = c.getBoolean("anti-block-update.interact.anvil", false);
+        cfgInteractBrewingStand    = c.getBoolean("anti-block-update.interact.brewing-stand", false);
+        cfgInteractBeacon          = c.getBoolean("anti-block-update.interact.beacon", false);
+        cfgInteractDispenser       = c.getBoolean("anti-block-update.interact.dispenser", false);
+        cfgInteractHopper          = c.getBoolean("anti-block-update.interact.hopper", false);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -433,7 +415,6 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockIgnite(BlockIgniteEvent event) {
-        // BUG-04: skip early if the ignition-blocking feature is entirely off
         if (!cfgIgnitionEnabled) return;
         if (cfgBlockedIgniteCauses.contains(event.getCause()))
             event.setCancelled(true);
@@ -441,53 +422,44 @@ public class Main extends JavaPlugin implements Listener {
 
     // ══════════════════════════════════════════════════════════════════════════
     // BLOCK SPREAD — fire, grass, mycelium, mushroom, vine
+    // Fix #1/#2: GRASS→GRASS_BLOCK and MYCEL→MYCELIUM in 1.13; use set lookup
+    // instead of switch-case enum literals that don't exist on newer servers.
     // ══════════════════════════════════════════════════════════════════════════
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockSpread(BlockSpreadEvent event) {
-        switch (event.getNewState().getType()) {
-            case FIRE:
-                if (cfgFireSpread) event.setCancelled(true);
-                break;
-            case GRASS:
-                if (cfgSpreadGrass) event.setCancelled(true);
-                break;
-            case MYCEL:
-                if (cfgSpreadMycelium) event.setCancelled(true);
-                break;
-            case BROWN_MUSHROOM:
-            case RED_MUSHROOM:
-                if (cfgSpreadMushroom) event.setCancelled(true);
-                break;
-            case VINE:
-                if (cfgSpreadVine) event.setCancelled(true);
-                break;
-            default:
-                break;
+        Material newType = event.getNewState().getType();
+        String name = newType.name();
+        if (name.equals("FIRE")) {
+            if (cfgFireSpread) event.setCancelled(true);
+        } else if (GRASS_BLOCK_MATERIALS.contains(newType)) {
+            if (cfgSpreadGrass) event.setCancelled(true);
+        } else if (MYCELIUM_MATERIALS.contains(newType)) {
+            if (cfgSpreadMycelium) event.setCancelled(true);
+        } else if (name.equals("BROWN_MUSHROOM") || name.equals("RED_MUSHROOM")) {
+            if (cfgSpreadMushroom) event.setCancelled(true);
+        } else if (name.equals("VINE")) {
+            if (cfgSpreadVine) event.setCancelled(true);
         }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
     // BLOCK FADE — ice melt, snow melt, fire extinguish, farmland dry
+    // Fix #3: SOIL→FARMLAND in 1.13; use set lookup instead of switch-case.
     // ══════════════════════════════════════════════════════════════════════════
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFade(BlockFadeEvent event) {
-        switch (event.getBlock().getType()) {
-            case ICE:
-                if (cfgIceMelt) event.setCancelled(true);
-                break;
-            case SNOW:
-                if (cfgSnowMelt) event.setCancelled(true);
-                break;
-            case FIRE:
-                if (cfgFireExtinguish) event.setCancelled(true);
-                break;
-            case SOIL:
-                if (cfgFarmlandDry) event.setCancelled(true);
-                break;
-            default:
-                break;
+        Material type = event.getBlock().getType();
+        String name = type.name();
+        if (name.equals("ICE")) {
+            if (cfgIceMelt) event.setCancelled(true);
+        } else if (name.equals("SNOW")) {
+            if (cfgSnowMelt) event.setCancelled(true);
+        } else if (name.equals("FIRE")) {
+            if (cfgFireExtinguish) event.setCancelled(true);
+        } else if (FARMLAND_MATERIALS.contains(type)) {
+            if (cfgFarmlandDry) event.setCancelled(true);
         }
     }
 
@@ -532,7 +504,6 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockFromTo(BlockFromToEvent event) {
         Material type = event.getBlock().getType();
-        // STATIONARY_WATER / STATIONARY_LAVA were removed in 1.13; check by name to stay compatible
         String typeName = type.name();
         if ((typeName.equals("WATER") || typeName.equals("STATIONARY_WATER")) && cfgWaterFlow) {
             event.setCancelled(true);
@@ -679,8 +650,10 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        // BUG-05: resolve the true attacker through projectiles so ranged PvP/mob hits are blocked
         org.bukkit.entity.Entity rawDamager = event.getDamager();
+        // Fix #7: when the projectile shooter is a non-entity source (e.g. dispenser),
+        // keep rawDamager so the checks below simply fall through rather than treating
+        // a block dispenser as if it were a player or monster.
         org.bukkit.entity.Entity attacker = rawDamager;
         if (rawDamager instanceof Projectile) {
             ProjectileSource shooter = ((Projectile) rawDamager).getShooter();
@@ -704,7 +677,6 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageEvent event) {
-        // BUG-06: skip entirely when neither flag is active to avoid per-event cost
         if (!cfgBlockFallDamage && !cfgBlockVoidDamage) return;
         if (event instanceof EntityDamageByEntityEvent) return;
         if (!(event.getEntity() instanceof Player)) return;
@@ -724,8 +696,8 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onEntityPickupItem(EntityPickupItemEvent event) {
-        if (cfgItemPickup && event.getEntity() instanceof Player) event.setCancelled(true);
+    public void onPlayerPickupItem(PlayerPickupItemEvent event) {
+        if (cfgItemPickup) event.setCancelled(true);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -746,7 +718,8 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onWeatherChange(WeatherChangeEvent event) {
-        // BUG-10: only cancel rain starting, not clearing, so the world eventually clears
+        // Only cancel the transition to stormy weather; clearing is left untouched
+        // so the world doesn't get stuck in permanent storm if the plugin reloads mid-storm.
         if (cfgWeatherChange && event.toWeatherState()) event.setCancelled(true);
     }
 
@@ -758,7 +731,6 @@ public class Main extends JavaPlugin implements Listener {
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
         Action action = event.getAction();
-        // BUG-01/02: use runtime-resolved Material sets instead of removed enum literals
         Material type = event.getClickedBlock().getType();
 
         // Walking on pressure plates fires PHYSICAL, not RIGHT_CLICK_BLOCK

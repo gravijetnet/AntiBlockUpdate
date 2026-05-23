@@ -14,15 +14,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PortalManager {
 
     private final Plugin plugin;
-    // BUG-26: store portals keyed by lower-case name for case-insensitive lookup
+    // Keyed by lower-case portal name for case-insensitive lookup.
     private final Map<String, Portal> portals = new ConcurrentHashMap<>();
     private final Map<UUID, Selection> selections = new ConcurrentHashMap<>();
 
-    // BUG-25: initialise to non-null so savePortals() is safe even before loadPortals()
-    private File portalsFile;
+    private final File portalsFile;
     private YamlConfiguration portalsConfig = new YamlConfiguration();
 
-    // BUG-27/28: per-world portal index to skip irrelevant portals in O(1)
+    // Per-world portal index to avoid scanning every portal on every move event.
     private final Map<String, List<Portal>> portalsByWorld = new ConcurrentHashMap<>();
 
     private PortalListener portalListener;
@@ -58,24 +57,25 @@ public class PortalManager {
             Vector p1 = existing != null ? existing.point1 : null;
             Vector p2 = existing != null ? existing.point2 : null;
             if (index == 1) { p1 = point; w1 = worldName; }
-            else { p2 = point; w2 = worldName; }
+            else            { p2 = point; w2 = worldName; }
             return new Selection(w1, w2, p1, p2);
         }
     }
 
     public PortalManager(Plugin plugin) {
         this.plugin = plugin;
+        // Fix #34: assign portalsFile once in the constructor; loadPortals() no longer reassigns it.
         portalsFile = new File(plugin.getDataFolder(), "portals.yml");
         loadPortals();
     }
 
-    /** Register the listener so reloadPortals() can clear stale player-portal state. */
     public void setPortalListener(PortalListener listener) {
         this.portalListener = listener;
     }
 
     public void loadPortals() {
-        portalsFile = new File(plugin.getDataFolder(), "portals.yml");
+        // Fix #32/#33: build the new portal set into a temporary map first, then swap
+        // atomically so a mid-parse failure never leaves the live map half-populated.
         if (!portalsFile.exists()) {
             try {
                 plugin.saveResource("portals.yml", false);
@@ -85,17 +85,23 @@ public class PortalManager {
                 try {
                     portalsConfig.save(portalsFile);
                 } catch (IOException ex) {
-                    // BUG-23: log the failure; portalsFile still doesn't exist but
-                    // loadConfiguration below will handle a missing file gracefully
                     plugin.getLogger().severe("Could not create portals.yml: " + ex.getMessage());
                 }
             }
         }
-        portalsConfig = YamlConfiguration.loadConfiguration(portalsFile);
-        portals.clear();
-        portalsByWorld.clear();
 
-        List<Map<?, ?>> portalsList = portalsConfig.getMapList("portals");
+        YamlConfiguration newConfig = YamlConfiguration.loadConfiguration(portalsFile);
+        if (newConfig.getKeys(false).isEmpty() && portalsFile.exists() && portalsFile.length() > 0) {
+            // loadConfiguration returned an empty config despite the file having content —
+            // this indicates a read error; bail out rather than wiping live portal data.
+            plugin.getLogger().severe("Could not read portals.yml — keeping current portal data.");
+            return;
+        }
+
+        Map<String, Portal> newPortals = new HashMap<>();
+        Map<String, List<Portal>> newByWorld = new HashMap<>();
+
+        List<Map<?, ?>> portalsList = newConfig.getMapList("portals");
         for (Map<?, ?> map : portalsList) {
             try {
                 Map<String, Object> data = new HashMap<>();
@@ -103,24 +109,34 @@ public class PortalManager {
                     data.put(entry.getKey().toString(), entry.getValue());
                 }
                 Portal portal = Portal.deserialize(data);
-                putPortal(portal);
+                newPortals.put(portal.getName().toLowerCase(), portal);
+                newByWorld.computeIfAbsent(portal.getWorldName(), k -> new ArrayList<>()).add(portal);
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to load portal: " + map + " — " + e.getMessage());
             }
         }
+
+        // Swap in the fully-parsed data atomically.
+        portals.clear();
+        portals.putAll(newPortals);
+        portalsByWorld.clear();
+        // Wrap each list in a synchronizedList to match the concurrent contract in addToWorldIndex.
+        for (Map.Entry<String, List<Portal>> entry : newByWorld.entrySet()) {
+            portalsByWorld.put(entry.getKey(), Collections.synchronizedList(entry.getValue()));
+        }
+
+        portalsConfig = newConfig;
         plugin.getLogger().info("Loaded " + portals.size() + " portal(s).");
     }
 
     public void reloadPortals() {
         loadPortals();
-        // BUG-17: clear stale player→portal mappings so re-entry triggers execute() again
         if (portalListener != null) {
             portalListener.clearAllPortalState();
         }
     }
 
     public void savePortals() {
-        // BUG-25: portalsFile is always non-null (initialised in constructor + loadPortals)
         List<Map<String, Object>> list = new ArrayList<>();
         for (Portal portal : portals.values()) {
             list.add(portal.serialize());
@@ -129,15 +145,14 @@ public class PortalManager {
         try {
             portalsConfig.save(portalsFile);
         } catch (IOException e) {
-            // BUG-21: surface the full exception so the admin can diagnose disk/permission issues
             plugin.getLogger().severe("Could not save portals.yml: " + e.getMessage());
         }
     }
 
     public boolean createPortal(String name, PortalType type, String value, String worldName, Vector min, Vector max) {
         String key = name.toLowerCase();
-        if (portals.containsKey(key)) return false;
         Portal portal = new Portal(name, type, value, worldName, min, max);
+        // Fix #36: use only putIfAbsent — remove the redundant containsKey pre-check.
         if (portals.putIfAbsent(key, portal) != null) return false;
         addToWorldIndex(portal);
         savePortals();
@@ -162,13 +177,17 @@ public class PortalManager {
         return portals.values();
     }
 
-    // BUG-27/28: only scan portals in the relevant world
+    // Fix #27: only scan portals in the relevant world.
     public Portal getPortalAt(Location location) {
         if (location == null || location.getWorld() == null) return null;
         List<Portal> worldPortals = portalsByWorld.get(location.getWorld().getName());
         if (worldPortals == null) return null;
-        for (Portal portal : worldPortals) {
-            if (portal.contains(location)) return portal;
+        // Fix #37: synchronize iteration over the synchronizedList to prevent
+        // ConcurrentModificationException when addToWorldIndex/removeFromWorldIndex run concurrently.
+        synchronized (worldPortals) {
+            for (Portal portal : worldPortals) {
+                if (portal.contains(location)) return portal;
+            }
         }
         return null;
     }
@@ -180,7 +199,6 @@ public class PortalManager {
         selections.put(uuid, updated);
     }
 
-    // BUG-24: Javadoc notes that elements may be null; use hasCompleteSelection before calling
     public Vector[] getSelection(Player player) {
         Selection sel = selections.get(player.getUniqueId());
         if (sel == null) return new Vector[2];
@@ -207,7 +225,6 @@ public class PortalManager {
         if (!sel.isSameWorld()) return false;
         String key = name.toLowerCase();
         Portal portal = new Portal(name, type, value, sel.getWorldName(), sel.getPoint1(), sel.getPoint2());
-        // BUG-16/22: use putIfAbsent so this is atomic; reject if another thread already created it
         if (portals.putIfAbsent(key, portal) != null) return false;
         addToWorldIndex(portal);
         savePortals();
@@ -217,11 +234,6 @@ public class PortalManager {
 
     // ── World index helpers ────────────────────────────────────────────────────
 
-    private void putPortal(Portal portal) {
-        portals.put(portal.getName().toLowerCase(), portal);
-        addToWorldIndex(portal);
-    }
-
     private void addToWorldIndex(Portal portal) {
         portalsByWorld.computeIfAbsent(portal.getWorldName(), k -> Collections.synchronizedList(new ArrayList<>()))
                       .add(portal);
@@ -230,7 +242,10 @@ public class PortalManager {
     private void removeFromWorldIndex(Portal portal) {
         List<Portal> worldPortals = portalsByWorld.get(portal.getWorldName());
         if (worldPortals != null) {
-            worldPortals.remove(portal);
+            // Fix #37: synchronize removal to match the synchronizedList contract.
+            synchronized (worldPortals) {
+                worldPortals.remove(portal);
+            }
         }
     }
 }
