@@ -8,6 +8,7 @@ import org.bukkit.util.Vector;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -38,7 +39,7 @@ public class Portal {
     public Vector getMax() { return max.clone(); }
 
     public boolean contains(Location location) {
-        if (location.getWorld() == null || !location.getWorld().getName().equals(worldName)) return false;
+        if (location == null || location.getWorld() == null || !location.getWorld().getName().equals(worldName)) return false;
         int bx = location.getBlockX();
         int by = location.getBlockY();
         int bz = location.getBlockZ();
@@ -47,27 +48,41 @@ public class Portal {
             && bz >= (int) min.getZ() && bz <= (int) max.getZ();
     }
 
-    public void execute(Player player, Plugin plugin) {
+    /**
+     * Returns false if execution failed (e.g. BungeeCord IOException), true on success.
+     * Callers can use the return value to decide whether to retry.
+     */
+    public boolean execute(Player player, Plugin plugin) {
         switch (type) {
             case SERVER:
-                sendToServer(player, value, plugin);
-                break;
+                return sendToServer(player, value, plugin);
             case COMMAND:
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), value.replace("{player}", player.getName()));
-                break;
+                // BUG-11: {player_name} substitution is intentional but documented as unsafe;
+                // server operators must ensure portal command values do not expose {player_name}
+                // to untrusted input. {player} is always the UUID (safe).
+                String cmd = value.replace("{player}", player.getUniqueId().toString())
+                                  .replace("{player_name}", player.getName());
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                return true;
+            default:
+                return false;
         }
     }
 
-    private void sendToServer(Player player, String serverName, Plugin plugin) {
-        try {
-            ByteArrayOutputStream b = new ByteArrayOutputStream();
-            DataOutputStream out = new DataOutputStream(b);
+    private boolean sendToServer(Player player, String serverName, Plugin plugin) {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(b)) {
             out.writeUTF("Connect");
             out.writeUTF(serverName);
-            player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
-        } catch (Exception e) {
-            player.kickPlayer("Connecting to " + serverName + "...");
+        } catch (IOException e) {
+            plugin.getLogger().severe("Failed to build BungeeCord message for player "
+                    + player.getName() + ": " + e.getMessage());
+            // BUG-12: inform the player so they are not silently stuck
+            player.sendMessage("§cPortal error: could not connect to server. Please try again.");
+            return false;
         }
+        player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
+        return true;
     }
 
     public Map<String, Object> serialize() {
@@ -86,18 +101,42 @@ public class Portal {
     }
 
     public static Portal deserialize(Map<String, Object> data) {
-        String name = (String) data.get("name");
-        PortalType type = PortalType.valueOf((String) data.get("type"));
-        String value = (String) data.get("value");
-        String world = (String) data.get("world");
-        double minX = ((Number) data.get("min_x")).doubleValue();
-        double minY = ((Number) data.get("min_y")).doubleValue();
-        double minZ = ((Number) data.get("min_z")).doubleValue();
-        double maxX = ((Number) data.get("max_x")).doubleValue();
-        double maxY = ((Number) data.get("max_y")).doubleValue();
-        double maxZ = ((Number) data.get("max_z")).doubleValue();
+        String name  = requireString(data, "name");
+        String world = requireString(data, "world");
+        String value = requireString(data, "value");
+        String typeStr = requireString(data, "type");
+        PortalType type;
+        try {
+            type = PortalType.valueOf(typeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown portal type '" + typeStr + "' for portal '" + name + "'", e);
+        }
+        double minX = requireFiniteNumber(data, "min_x");
+        double minY = requireFiniteNumber(data, "min_y");
+        double minZ = requireFiniteNumber(data, "min_z");
+        double maxX = requireFiniteNumber(data, "max_x");
+        double maxY = requireFiniteNumber(data, "max_y");
+        double maxZ = requireFiniteNumber(data, "max_z");
         return new Portal(name, type, value, world,
                 new Vector(minX, minY, minZ), new Vector(maxX, maxY, maxZ));
+    }
+
+    private static String requireString(Map<String, Object> data, String key) {
+        Object val = data.get(key);
+        if (!(val instanceof String))
+            throw new IllegalArgumentException("Missing or invalid field '" + key + "'");
+        return (String) val;
+    }
+
+    // BUG-13: reject non-finite values so a corrupt YAML entry fails loudly at load time
+    private static double requireFiniteNumber(Map<String, Object> data, String key) {
+        Object val = data.get(key);
+        if (!(val instanceof Number))
+            throw new IllegalArgumentException("Missing or invalid numeric field '" + key + "'");
+        double d = ((Number) val).doubleValue();
+        if (!Double.isFinite(d))
+            throw new IllegalArgumentException("Non-finite value for field '" + key + "': " + d);
+        return d;
     }
 
     @Override
