@@ -17,7 +17,6 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
-import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.StructureGrowEvent;
@@ -409,9 +408,6 @@ public class Main extends JavaPlugin implements Listener {
             case ZOMBIE:
                 if (cfgZombieBreakDoor) event.setCancelled(true);
                 break;
-            case RAVAGER:
-                if (cfgRavagerBlock) event.setCancelled(true);
-                break;
             default:
                 break;
         }
@@ -716,8 +712,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onEntityPickupItem(EntityPickupItemEvent event) {
-        if (!(event.getEntity() instanceof Player)) return;
+    public void onPlayerPickupItem(PlayerPickupItemEvent event) {
         if (cfgItemPickup) event.setCancelled(true);
     }
 
