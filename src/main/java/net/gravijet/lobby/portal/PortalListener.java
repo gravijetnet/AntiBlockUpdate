@@ -90,7 +90,7 @@ public class PortalListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInHand();
+        ItemStack item = player.getInventory().getItemInMainHand();
         if (item == null || item.getType() != Material.BLAZE_ROD) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
 

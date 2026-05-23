@@ -117,10 +117,10 @@ public class Portal {
     }
 
     public static Portal deserialize(Map<String, Object> data) {
-        String name    = requireString(data, "name");
-        String world   = requireString(data, "world");
+        String name    = requireNonEmptyString(data, "name");
+        String world   = requireNonEmptyString(data, "world");
         String value   = requireString(data, "value");
-        String typeStr = requireString(data, "type");
+        String typeStr = requireNonEmptyString(data, "type");
         PortalType type;
         try {
             type = PortalType.valueOf(typeStr.toUpperCase());
@@ -141,7 +141,11 @@ public class Portal {
         Object val = data.get(key);
         if (!(val instanceof String))
             throw new IllegalArgumentException("Missing or invalid field '" + key + "'");
-        String s = (String) val;
+        return (String) val;
+    }
+
+    private static String requireNonEmptyString(Map<String, Object> data, String key) {
+        String s = requireString(data, key);
         if (s.isEmpty())
             throw new IllegalArgumentException("Field '" + key + "' must not be empty");
         return s;

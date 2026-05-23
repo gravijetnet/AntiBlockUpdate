@@ -190,7 +190,10 @@ public class PortalManager {
     // Fix #27: only scan portals in the relevant world.
     public Portal getPortalAt(Location location) {
         if (location == null || location.getWorld() == null) return null;
-        List<Portal> worldPortals = portalsByWorld.get(location.getWorld().getName());
+        List<Portal> worldPortals;
+        synchronized (this) {
+            worldPortals = portalsByWorld.get(location.getWorld().getName());
+        }
         if (worldPortals == null) return null;
         // Fix #37: synchronize iteration over the synchronizedList to prevent
         // ConcurrentModificationException when addToWorldIndex/removeFromWorldIndex run concurrently.

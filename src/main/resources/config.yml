@@ -30,10 +30,14 @@ anti-block-update:
       RED_MUSHROOM: true
       CACTUS: true
       SUGAR_CANE_BLOCK: true
+      SUGAR_CANE: true
       WHEAT: true
       CARROT: true
+      CARROTS: true
       POTATO: true
+      POTATOES: true
       NETHER_WARTS: true
+      NETHER_WART: true
       COCOA: true
       PUMPKIN_STEM: true
       MELON_STEM: true
@@ -130,13 +134,17 @@ anti-block-update:
     plants:
       WHEAT: true
       CARROT: true
+      CARROTS: true
       POTATO: true
+      POTATOES: true
       MELON_STEM: true
       PUMPKIN_STEM: true
       NETHER_WARTS: true
+      NETHER_WART: true
       COCOA: true
       CACTUS: true
       SUGAR_CANE_BLOCK: true
+      SUGAR_CANE: true
 
   # ═══════════════════════════════════════════════════════════════════════════
   # LIQUID FLOW  (BlockFromToEvent)
@@ -173,6 +181,7 @@ anti-block-update:
     silverfish: true         # Prevents silverfish from entering/leaving stone.
     wither: true             # Prevents the Wither boss from breaking blocks.
     zombie-break-door: false # Prevents zombies from breaking wooden doors.
+    ravager: false           # Prevents ravagers from destroying blocks during raids.
 
   # ═══════════════════════════════════════════════════════════════════════════
   # EXPLOSIONS  (EntityExplodeEvent)
@@ -184,6 +193,8 @@ anti-block-update:
     wither: false
     fireball: false
     wither-skull: false
+    bed: false              # Prevents beds from destroying blocks when exploding in Nether/End.
+    respawn-anchor: false   # Prevents respawn anchors from destroying blocks when exploding in Overworld.
 
   # ═══════════════════════════════════════════════════════════════════════════
   # PISTONS  (BlockPistonExtendEvent / BlockPistonRetractEvent)

@@ -94,7 +94,11 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§cInvalid type. Use SERVER or COMMAND.");
             return;
         }
-        String value = String.join(" ", Arrays.copyOfRange(args, 3, args.length));
+        String value = String.join(" ", Arrays.copyOfRange(args, 3, args.length)).trim();
+        if (value.isEmpty()) {
+            sender.sendMessage("§cPortal value must not be empty.");
+            return;
+        }
 
         if (!portalManager.hasCompleteSelection(player)) {
             sender.sendMessage("§cSelect two points with the wand first.");
@@ -204,7 +208,7 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
                         .collect(Collectors.toList());
             }
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("create")) {
+        if (args.length == 3 && args[0].equalsIgnoreCase("create") && sender.hasPermission(PERM_MANAGE)) {
             return Arrays.stream(PortalType.values())
                     .map(Enum::name)
                     .filter(t -> t.toLowerCase().startsWith(args[2].toLowerCase()))

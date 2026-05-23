@@ -17,6 +17,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.StructureGrowEvent;
@@ -46,7 +47,7 @@ public class Main extends JavaPlugin implements Listener {
     private boolean cfgZombieBreakDoor;
     private boolean cfgRavagerBlock;
     private boolean cfgFireBurn;
-    private Set<BlockIgniteEvent.IgniteCause> cfgBlockedIgniteCauses;
+    private volatile Set<BlockIgniteEvent.IgniteCause> cfgBlockedIgniteCauses;
     private boolean cfgIgnitionEnabled;
     private boolean cfgFireSpread;
     private boolean cfgSpreadGrass;
@@ -289,13 +290,14 @@ public class Main extends JavaPlugin implements Listener {
         cfgFireSpread     = c.getBoolean("anti-block-update.fire.spread", true);
         cfgFireExtinguish = c.getBoolean("anti-block-update.fire.extinguish", false);
         cfgIgnitionEnabled = c.getBoolean("anti-block-update.fire.ignition.enabled", true);
-        cfgBlockedIgniteCauses = EnumSet.noneOf(BlockIgniteEvent.IgniteCause.class);
+        Set<BlockIgniteEvent.IgniteCause> newIgniteCauses = EnumSet.noneOf(BlockIgniteEvent.IgniteCause.class);
         if (cfgIgnitionEnabled) {
             for (BlockIgniteEvent.IgniteCause cause : BlockIgniteEvent.IgniteCause.values()) {
                 if (c.getBoolean("anti-block-update.fire.ignition.causes." + cause.name(), false))
-                    cfgBlockedIgniteCauses.add(cause);
+                    newIgniteCauses.add(cause);
             }
         }
+        cfgBlockedIgniteCauses = Collections.unmodifiableSet(newIgniteCauses);
 
         cfgSpreadGrass    = c.getBoolean("anti-block-update.spread.grass", true);
         cfgSpreadMycelium = c.getBoolean("anti-block-update.spread.mycelium", true);
@@ -339,8 +341,8 @@ public class Main extends JavaPlugin implements Listener {
         cfgBucketFill  = c.getBoolean("anti-block-update.buckets.fill", false);
         cfgBucketEmpty = c.getBoolean("anti-block-update.buckets.empty", false);
 
-        cfgNaturalMonsters = c.getBoolean("anti-block-update.mob-spawn.natural-monsters", false);
-        cfgNaturalMobs     = c.getBoolean("anti-block-update.mob-spawn.natural-mobs", false);
+        cfgNaturalMonsters = c.getBoolean("anti-block-update.mob-spawn.natural-monsters", true);
+        cfgNaturalMobs     = c.getBoolean("anti-block-update.mob-spawn.natural-mobs", true);
 
         cfgBlockPvp           = c.getBoolean("anti-block-update.combat.block-pvp", false);
         cfgBlockHitMonsters   = c.getBoolean("anti-block-update.combat.block-hit-monsters", false);
@@ -351,8 +353,8 @@ public class Main extends JavaPlugin implements Listener {
 
         cfgItemDrop        = c.getBoolean("anti-block-update.item-drop", false);
         cfgItemPickup      = c.getBoolean("anti-block-update.item-pickup", false);
-        cfgHungerDepletion = c.getBoolean("anti-block-update.hunger-depletion", false);
-        cfgWeatherChange   = c.getBoolean("anti-block-update.weather-change", false);
+        cfgHungerDepletion = c.getBoolean("anti-block-update.hunger-depletion", true);
+        cfgWeatherChange   = c.getBoolean("anti-block-update.weather-change", true);
 
         cfgInteractBed             = c.getBoolean("anti-block-update.interact.bed", true);
         cfgInteractDoors           = c.getBoolean("anti-block-update.interact.doors", false);
@@ -714,7 +716,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onEntityPickupItem(org.bukkit.event.entity.EntityPickupItemEvent event) {
+    public void onEntityPickupItem(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player)) return;
         if (cfgItemPickup) event.setCancelled(true);
     }
