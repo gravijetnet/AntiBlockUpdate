@@ -17,7 +17,6 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
-import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.StructureGrowEvent;
@@ -28,13 +27,14 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Main extends JavaPlugin implements Listener {
 
     private PortalManager portalManager;
     private boolean portalEnabled;
-    private Set<Material> physicsBlacklist;
-    private Set<Material> plantBlacklist;
+    private volatile Set<Material> physicsBlacklist = Collections.emptySet();
+    private volatile Set<Material> plantBlacklist = Collections.emptySet();
 
     // ── Cached config values (populated by buildSets on enable/reload) ──────
     private boolean cfgPhysicsEnabled;
@@ -44,6 +44,7 @@ public class Main extends JavaPlugin implements Listener {
     private boolean cfgSilverfishBlock;
     private boolean cfgWitherBlock;
     private boolean cfgZombieBreakDoor;
+    private boolean cfgRavagerBlock;
     private boolean cfgFireBurn;
     private Set<BlockIgniteEvent.IgniteCause> cfgBlockedIgniteCauses;
     private boolean cfgIgnitionEnabled;
@@ -72,6 +73,8 @@ public class Main extends JavaPlugin implements Listener {
     private boolean cfgWitherExplosion;
     private boolean cfgFireballExplosion;
     private boolean cfgWitherSkullExplosion;
+    private boolean cfgBedExplosion;
+    private boolean cfgRespawnAnchorExplosion;
     private boolean cfgPistonExtend;
     private boolean cfgPistonRetract;
     private boolean cfgRedstoneChange;
@@ -259,18 +262,20 @@ public class Main extends JavaPlugin implements Listener {
         FileConfiguration c = getConfig();
 
         cfgPhysicsEnabled = c.getBoolean("anti-block-update.physics.enabled", true);
-        physicsBlacklist = new HashSet<>();
+        Set<Material> newPhysics = ConcurrentHashMap.newKeySet();
         for (Material mat : ALL_PHYSICS_BLOCKS) {
             if (c.getBoolean("anti-block-update.physics.blocks." + mat.name(), true))
-                physicsBlacklist.add(mat);
+                newPhysics.add(mat);
         }
+        physicsBlacklist = newPhysics;
 
         cfgPlantGrowthEnabled = c.getBoolean("anti-block-update.plant-growth.enabled", true);
-        plantBlacklist = new HashSet<>();
+        Set<Material> newPlants = ConcurrentHashMap.newKeySet();
         for (Material mat : ALL_PLANT_BLOCKS) {
             if (c.getBoolean("anti-block-update.plant-growth.plants." + mat.name(), true))
-                plantBlacklist.add(mat);
+                newPlants.add(mat);
         }
+        plantBlacklist = newPlants;
 
         cfgFallingBlocks    = c.getBoolean("anti-block-update.falling-blocks", true);
         cfgEndermanBlock    = c.getBoolean("anti-block-update.entity-block.enderman", true);
@@ -278,6 +283,7 @@ public class Main extends JavaPlugin implements Listener {
         cfgSilverfishBlock  = c.getBoolean("anti-block-update.entity-block.silverfish", true);
         cfgWitherBlock      = c.getBoolean("anti-block-update.entity-block.wither", true);
         cfgZombieBreakDoor  = c.getBoolean("anti-block-update.entity-block.zombie-break-door", false);
+        cfgRavagerBlock     = c.getBoolean("anti-block-update.entity-block.ravager", false);
 
         cfgFireBurn       = c.getBoolean("anti-block-update.fire.burn", true);
         cfgFireSpread     = c.getBoolean("anti-block-update.fire.spread", true);
@@ -317,7 +323,9 @@ public class Main extends JavaPlugin implements Listener {
         cfgCreeperExplosion     = c.getBoolean("anti-block-update.explosions.creeper", false);
         cfgWitherExplosion      = c.getBoolean("anti-block-update.explosions.wither", false);
         cfgFireballExplosion    = c.getBoolean("anti-block-update.explosions.fireball", false);
-        cfgWitherSkullExplosion = c.getBoolean("anti-block-update.explosions.wither-skull", false);
+        cfgWitherSkullExplosion     = c.getBoolean("anti-block-update.explosions.wither-skull", false);
+        cfgBedExplosion             = c.getBoolean("anti-block-update.explosions.bed", false);
+        cfgRespawnAnchorExplosion   = c.getBoolean("anti-block-update.explosions.respawn-anchor", false);
 
         cfgPistonExtend    = c.getBoolean("anti-block-update.pistons.extend", false);
         cfgPistonRetract   = c.getBoolean("anti-block-update.pistons.retract", false);
@@ -399,6 +407,9 @@ public class Main extends JavaPlugin implements Listener {
             case ZOMBIE:
                 if (cfgZombieBreakDoor) event.setCancelled(true);
                 break;
+            case RAVAGER:
+                if (cfgRavagerBlock) event.setCancelled(true);
+                break;
             default:
                 break;
         }
@@ -415,7 +426,6 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockIgnite(BlockIgniteEvent event) {
-        if (!cfgIgnitionEnabled) return;
         if (cfgBlockedIgniteCauses.contains(event.getCause()))
             event.setCancelled(true);
     }
@@ -509,7 +519,7 @@ public class Main extends JavaPlugin implements Listener {
             event.setCancelled(true);
         } else if ((typeName.equals("LAVA") || typeName.equals("STATIONARY_LAVA")) && cfgLavaFlow) {
             event.setCancelled(true);
-        } else if (type == Material.DRAGON_EGG && cfgDragonEggTeleport) {
+        } else if (typeName.equals("DRAGON_EGG") && cfgDragonEggTeleport) {
             event.setCancelled(true);
         }
     }
@@ -561,6 +571,14 @@ public class Main extends JavaPlugin implements Listener {
                 if (cfgWitherSkullExplosion) event.blockList().clear();
                 break;
             default:
+                // Bed and respawn-anchor explosions use entity type names that vary by
+                // server version (BED, UNKNOWN, etc.); match by name string to be safe.
+                String typeName = event.getEntityType().name();
+                if (typeName.equals("BED") && cfgBedExplosion) {
+                    event.blockList().clear();
+                } else if (typeName.equals("BLOCK_EXPLOSION") || typeName.equals("RESPAWN_ANCHOR")) {
+                    if (cfgRespawnAnchorExplosion) event.blockList().clear();
+                }
                 break;
         }
     }
@@ -696,7 +714,8 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onPlayerPickupItem(PlayerPickupItemEvent event) {
+    public void onEntityPickupItem(org.bukkit.event.entity.EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player)) return;
         if (cfgItemPickup) event.setCancelled(true);
     }
 
@@ -707,7 +726,7 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFoodLevelChange(FoodLevelChangeEvent event) {
         if (!(event.getEntity() instanceof Player)) return;
-        Player player = (Player) event.getEntity();
+        Player player = (Player) event.getEntity(); // safe: instanceof checked above, Player extends HumanEntity
         if (cfgHungerDepletion && event.getFoodLevel() < player.getFoodLevel())
             event.setCancelled(true);
     }
@@ -750,8 +769,6 @@ public class Main extends JavaPlugin implements Listener {
             if (cfgInteractButtons) event.setCancelled(true);
         } else if (type == Material.LEVER) {
             if (cfgInteractLever) event.setCancelled(true);
-        } else if (PRESSURE_PLATE_MATERIALS.contains(type)) {
-            if (cfgInteractPressurePlates) event.setCancelled(true);
         } else if (type == Material.NOTE_BLOCK) {
             if (cfgInteractNoteBlock) event.setCancelled(true);
         } else if (type == Material.JUKEBOX) {

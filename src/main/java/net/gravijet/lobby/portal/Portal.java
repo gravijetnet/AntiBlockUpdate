@@ -27,8 +27,15 @@ public class Portal {
         this.type = type;
         this.value = value;
         this.worldName = worldName;
-        this.min = new Vector(Math.min(min.getX(), max.getX()), Math.min(min.getY(), max.getY()), Math.min(min.getZ(), max.getZ()));
-        this.max = new Vector(Math.max(min.getX(), max.getX()), Math.max(min.getY(), max.getY()), Math.max(min.getZ(), max.getZ()));
+        // Store bounds as block-integer coordinates to avoid sub-block precision ambiguity.
+        this.min = new Vector(
+                (int) Math.floor(Math.min(min.getX(), max.getX())),
+                (int) Math.floor(Math.min(min.getY(), max.getY())),
+                (int) Math.floor(Math.min(min.getZ(), max.getZ())));
+        this.max = new Vector(
+                (int) Math.floor(Math.max(min.getX(), max.getX())),
+                (int) Math.floor(Math.max(min.getY(), max.getY())),
+                (int) Math.floor(Math.max(min.getZ(), max.getZ())));
     }
 
     public String getName() { return name; }
@@ -40,34 +47,44 @@ public class Portal {
 
     public boolean contains(Location location) {
         if (location == null || location.getWorld() == null || !location.getWorld().getName().equals(worldName)) return false;
-        // Fix #18: use Math.floor() so negative coordinates truncate toward -infinity,
-        // not toward zero, keeping the boundary correct on all sides.
         int bx = (int) Math.floor(location.getX());
         int by = (int) Math.floor(location.getY());
         int bz = (int) Math.floor(location.getZ());
-        return bx >= (int) Math.floor(min.getX()) && bx <= (int) Math.floor(max.getX())
-            && by >= (int) Math.floor(min.getY()) && by <= (int) Math.floor(max.getY())
-            && bz >= (int) Math.floor(min.getZ()) && bz <= (int) Math.floor(max.getZ());
+        return bx >= (int) min.getX() && bx <= (int) max.getX()
+            && by >= (int) min.getY() && by <= (int) max.getY()
+            && bz >= (int) min.getZ() && bz <= (int) max.getZ();
     }
 
     public boolean execute(Player player, Plugin plugin) {
         switch (type) {
             case SERVER:
+                if (!player.isOnline()) return false;
                 return sendToServer(player, value, plugin);
             case COMMAND:
-                // Fix #15: sanitise the player name before substituting it into a console
-                // command to prevent injection via special characters on offline/proxy servers.
                 String safeName = player.getName().replaceAll("[^A-Za-z0-9_]", "");
+                if (safeName.isEmpty()) {
+                    plugin.getLogger().warning("Portal '" + name + "': player name became empty after sanitisation, skipping command.");
+                    return false;
+                }
+                if (value.isEmpty()) {
+                    plugin.getLogger().warning("Portal '" + name + "': command value is empty, skipping.");
+                    return false;
+                }
                 String cmd = value.replace("{player}", player.getUniqueId().toString())
                                   .replace("{player_name}", safeName);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
                 return true;
             default:
+                plugin.getLogger().warning("Portal '" + name + "': unhandled portal type '" + type + "', cannot execute.");
                 return false;
         }
     }
 
     private boolean sendToServer(Player player, String serverName, Plugin plugin) {
+        if (serverName.isEmpty()) {
+            plugin.getLogger().warning("Portal '" + name + "': server value is empty, skipping.");
+            return false;
+        }
         ByteArrayOutputStream b = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(b)) {
             out.writeUTF("Connect");
@@ -75,9 +92,10 @@ public class Portal {
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to build BungeeCord message for player "
                     + player.getName() + ": " + e.getMessage());
-            player.sendMessage("§cPortal error: could not connect to server. Please try again.");
+            if (player.isOnline()) player.sendMessage("§cPortal error: could not connect to server. Please try again.");
             return false;
         }
+        if (!player.isOnline()) return false;
         player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
         return true;
     }
@@ -123,7 +141,10 @@ public class Portal {
         Object val = data.get(key);
         if (!(val instanceof String))
             throw new IllegalArgumentException("Missing or invalid field '" + key + "'");
-        return (String) val;
+        String s = (String) val;
+        if (s.isEmpty())
+            throw new IllegalArgumentException("Field '" + key + "' must not be empty");
+        return s;
     }
 
     private static double requireFiniteNumber(Map<String, Object> data, String key) {
@@ -140,12 +161,18 @@ public class Portal {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return name.equals(((Portal) o).name);
+        Portal other = (Portal) o;
+        return name.equals(other.name)
+                && type == other.type
+                && value.equals(other.value)
+                && worldName.equals(other.worldName)
+                && min.equals(other.min)
+                && max.equals(other.max);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, type, value, worldName, min, max);
     }
 
     @Override

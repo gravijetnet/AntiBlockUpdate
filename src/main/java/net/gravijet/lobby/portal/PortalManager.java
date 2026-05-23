@@ -40,6 +40,7 @@ public class PortalManager {
         }
 
         public String getWorldName() { return world1; }
+        public String getWorld2Name() { return world2; }
         public Vector getPoint1() { return point1; }
         public Vector getPoint2() { return point2; }
 
@@ -52,6 +53,8 @@ public class PortalManager {
         }
 
         public static Selection withPoint(Selection existing, String worldName, Vector point, int index) {
+            if (index != 1 && index != 2)
+                throw new IllegalArgumentException("Selection point index must be 1 or 2, got: " + index);
             String w1 = existing != null ? existing.world1 : null;
             String w2 = existing != null ? existing.world2 : null;
             Vector p1 = existing != null ? existing.point1 : null;
@@ -90,11 +93,16 @@ public class PortalManager {
             }
         }
 
+        if (portalsFile.isDirectory()) {
+            plugin.getLogger().severe("portals.yml is a directory, not a file — keeping current portal data.");
+            return;
+        }
+
         YamlConfiguration newConfig = YamlConfiguration.loadConfiguration(portalsFile);
-        if (newConfig.getKeys(false).isEmpty() && portalsFile.exists() && portalsFile.length() > 0) {
-            // loadConfiguration returned an empty config despite the file having content —
-            // this indicates a read error; bail out rather than wiping live portal data.
-            plugin.getLogger().severe("Could not read portals.yml — keeping current portal data.");
+        // If the file exists, is non-empty, and has no keys at all, it is likely corrupt/unreadable.
+        // A valid empty portals list would still have a "portals" key.
+        if (portalsFile.exists() && portalsFile.length() > 0 && !newConfig.contains("portals")) {
+            plugin.getLogger().severe("Could not read portals.yml (missing 'portals' key) — keeping current portal data.");
             return;
         }
 
@@ -116,13 +124,15 @@ public class PortalManager {
             }
         }
 
-        // Swap in the fully-parsed data atomically.
-        portals.clear();
-        portals.putAll(newPortals);
-        portalsByWorld.clear();
-        // Wrap each list in a synchronizedList to match the concurrent contract in addToWorldIndex.
-        for (Map.Entry<String, List<Portal>> entry : newByWorld.entrySet()) {
-            portalsByWorld.put(entry.getKey(), Collections.synchronizedList(entry.getValue()));
+        // Swap in the fully-parsed data. Synchronize on `this` so getPortalAt / getPortal
+        // cannot observe a half-empty map between the clear and the putAll.
+        synchronized (this) {
+            portals.clear();
+            portals.putAll(newPortals);
+            portalsByWorld.clear();
+            for (Map.Entry<String, List<Portal>> entry : newByWorld.entrySet()) {
+                portalsByWorld.put(entry.getKey(), Collections.synchronizedList(entry.getValue()));
+            }
         }
 
         portalsConfig = newConfig;
@@ -138,7 +148,7 @@ public class PortalManager {
 
     public void savePortals() {
         List<Map<String, Object>> list = new ArrayList<>();
-        for (Portal portal : portals.values()) {
+        for (Portal portal : new ArrayList<>(portals.values())) {
             list.add(portal.serialize());
         }
         portalsConfig.set("portals", list);
@@ -193,6 +203,7 @@ public class PortalManager {
     }
 
     public void setSelection(Player player, Location location, int point) {
+        if (point != 1 && point != 2) throw new IllegalArgumentException("Point must be 1 or 2");
         if (location.getWorld() == null) return;
         UUID uuid = player.getUniqueId();
         Selection updated = Selection.withPoint(selections.get(uuid), location.getWorld().getName(), location.toVector(), point);
@@ -216,7 +227,9 @@ public class PortalManager {
 
     public String getSelectionWorld(Player player) {
         Selection sel = selections.get(player.getUniqueId());
-        return sel != null ? sel.getWorldName() : null;
+        if (sel == null) return null;
+        // Return world1 if point1 is set, otherwise world2 if point2 is set.
+        return sel.getWorldName() != null ? sel.getWorldName() : sel.getWorld2Name();
     }
 
     public boolean createPortalFromSelection(Player player, String name, PortalType type, String value) {

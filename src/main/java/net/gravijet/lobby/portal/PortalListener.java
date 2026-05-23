@@ -19,7 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class PortalListener implements Listener {
 
-    private static final String PERM_USE = "antiblockupdate.portal.use";
+    private static final String PERM_USE    = "antiblockupdate.portal.use";
+    private static final String PERM_MANAGE = "antiblockupdate.portal.manage";
 
     private final Plugin plugin;
     private final PortalManager portalManager;
@@ -50,16 +51,20 @@ public class PortalListener implements Listener {
         Portal portal = portalManager.getPortalAt(to);
 
         if (portal != null) {
-            // Fix #31: putIfAbsent makes the check-and-set atomic so concurrent firings
-            // for the same player cannot both pass the "not already in this portal" guard.
-            String previous = playerInPortal.putIfAbsent(uuid, portal.getName());
-            if (previous == null || !previous.equals(portal.getName())) {
-                // Ensure the map holds the new portal name even when we're replacing an old entry.
-                playerInPortal.put(uuid, portal.getName());
+            // Use compute() for an atomic check-and-set: the lambda runs under the map's
+            // internal lock for this key, so only one thread can win the "new portal" race.
+            final String[] shouldExecute = {null};
+            playerInPortal.compute(uuid, (k, current) -> {
+                if (current == null || !current.equals(portal.getName())) {
+                    shouldExecute[0] = portal.getName();
+                    return portal.getName();
+                }
+                return current;
+            });
+            if (shouldExecute[0] != null) {
                 boolean success = portal.execute(player, plugin);
-                // Fix #18 (listener side): on failure remove entry so the next crossing retries.
                 if (!success) {
-                    playerInPortal.remove(uuid);
+                    playerInPortal.remove(uuid, portal.getName());
                 }
             }
         } else {
@@ -86,11 +91,10 @@ public class PortalListener implements Listener {
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInHand();
-        if (item.getType() != Material.BLAZE_ROD) return;
+        if (item == null || item.getType() != Material.BLAZE_ROD) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
 
-        // Fix #29: require the manage permission to set selection points with the wand.
-        if (!player.hasPermission(PERM_USE)) return;
+        if (!player.hasPermission(PERM_MANAGE)) return;
 
         event.setCancelled(true);
         int point = player.isSneaking() ? 2 : 1;
@@ -100,7 +104,12 @@ public class PortalListener implements Listener {
         // For point 2, only enforce world consistency when point 1 is already set.
         if (point == 2) {
             String existingWorld = portalManager.getSelectionWorld(player);
-            if (existingWorld != null && !existingWorld.equals(event.getClickedBlock().getWorld().getName())) {
+            org.bukkit.World clickedWorld = event.getClickedBlock().getWorld();
+            if (clickedWorld == null) {
+                player.sendMessage("§cCould not determine the world of the clicked block.");
+                return;
+            }
+            if (existingWorld != null && !existingWorld.equals(clickedWorld.getName())) {
                 player.sendMessage("§cBoth selection points must be in the same world. Point 2 not saved.");
                 return;
             }

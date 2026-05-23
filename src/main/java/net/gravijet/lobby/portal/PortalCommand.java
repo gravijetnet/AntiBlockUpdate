@@ -12,6 +12,7 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -149,11 +150,11 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private void cmdTest(CommandSender sender) {
-        // Fix #23: player check before permission check.
         if (!(sender instanceof Player)) { sender.sendMessage("§cOnly players can use this command."); return; }
         if (!sender.hasPermission(PERM_USE)) { sender.sendMessage("§cYou do not have permission."); return; }
         Player player = (Player) sender;
         Location location = player.getLocation();
+        if (location == null) { sender.sendMessage("§cCould not determine your location."); return; }
         Portal portal = portalManager.getPortalAt(location);
         if (portal != null) {
             sender.sendMessage("§c§lGraviJet §7» §aInside portal: §e" + portal.getName());
@@ -171,7 +172,7 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     }
 
     private String fv(Vector v) {
-        return String.format("(%d, %d, %d)", (int) v.getX(), (int) v.getY(), (int) v.getZ());
+        return String.format("(%.1f, %.1f, %.1f)", v.getX(), v.getY(), v.getZ());
     }
 
     private boolean isValidName(String name) {
@@ -185,7 +186,11 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             String prefix = args[0].toLowerCase();
-            List<String> subs = new ArrayList<>(Arrays.asList("wand", "create", "delete", "list", "info", "reload", "test"));
+            List<String> subs = new ArrayList<>();
+            if (sender instanceof Player && sender.hasPermission(PERM_USE))
+                subs.addAll(Arrays.asList("wand", "test"));
+            if (sender.hasPermission(PERM_MANAGE))
+                subs.addAll(Arrays.asList("create", "delete", "list", "info", "reload"));
             subs.removeIf(s -> !s.startsWith(prefix));
             return subs;
         }
@@ -205,6 +210,6 @@ public class PortalCommand implements CommandExecutor, TabCompleter {
                     .filter(t -> t.toLowerCase().startsWith(args[2].toLowerCase()))
                     .collect(Collectors.toList());
         }
-        return new ArrayList<>();
+        return Collections.emptyList();
     }
 }
